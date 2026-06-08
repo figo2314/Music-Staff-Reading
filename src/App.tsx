@@ -158,7 +158,8 @@ function App() {
 
         const simulatedProgress = resultlessProgressPreview(state, records)
         const notes = getAvailableNotes(current.levelId, current.mode === 'review', simulatedProgress)
-        const nextNote = chooseWeightedNote(notes, simulatedProgress)
+        const recentNoteIds = records.map((item) => item.noteId)
+        const nextNote = chooseWeightedNote(notes, simulatedProgress, recentNoteIds)
         return {
           ...current,
           records,

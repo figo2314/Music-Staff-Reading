@@ -25,12 +25,31 @@ export function getAvailableNotes(levelId: string, reviewOnly: boolean, progress
   return weakNotes.length > 0 ? weakNotes : notes
 }
 
-export function chooseWeightedNote(notes: NoteItem[], progress: Record<string, NoteProgress>): NoteItem {
-  const weighted = notes.map((note) => {
+export function chooseWeightedNote(
+  notes: NoteItem[],
+  progress: Record<string, NoteProgress>,
+  recentNoteIds: string[] = [],
+): NoteItem {
+  if (notes.length === 0) {
+    throw new Error('No notes available for practice')
+  }
+
+  const recentSet = new Set(recentNoteIds)
+  const unaskedNotes = notes.filter((note) => !recentSet.has(note.id))
+  const lastNoteId = recentNoteIds.at(-1)
+  const pool = unaskedNotes.length > 0 ? unaskedNotes : notes
+  const candidateNotes = lastNoteId && pool.length > 1 ? pool.filter((note) => note.id !== lastNoteId) : pool
+  const recentTwoNoteIds = recentNoteIds.slice(-2)
+
+  const weighted = candidateNotes.map((note) => {
     const noteProgress = progress[note.id]
+    const askedCount = recentNoteIds.filter((noteId) => noteId === note.id).length
+    const recencyPenalty = recentTwoNoteIds.includes(note.id) ? 0.25 : 1
+    const repetitionPenalty = askedCount > 0 ? 1 / (askedCount + 1) : 1
+
     return {
       note,
-      weight: getNoteWeight(noteProgress),
+      weight: Math.max(0.1, getNoteWeight(noteProgress) * recencyPenalty * repetitionPenalty),
     }
   })
   const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0)
