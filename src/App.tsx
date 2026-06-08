@@ -48,6 +48,7 @@ interface QuestionState {
   id: string
   note: NoteItem
   startedAt: number
+  answerOptions: NoteName[]
 }
 
 interface PracticeState {
@@ -102,6 +103,7 @@ function App() {
         id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         note: questionNote,
         startedAt: Date.now(),
+        answerOptions: buildAnswerOptions(),
       },
       feedback: 'idle',
     })
@@ -169,6 +171,7 @@ function App() {
             id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
             note: nextNote,
             startedAt: Date.now(),
+            answerOptions: buildAnswerOptions(),
           },
         }
       })
@@ -464,7 +467,7 @@ function PracticeView({
       </div>
 
       <div className="answer-grid">
-        {buildAnswerOptions().map((answer) => {
+        {practice.question.answerOptions.map((answer) => {
           const isSelected = practice.selectedAnswer === answer
           const isCorrect = practice.feedback !== 'idle' && answer === correctAnswer
           const isWrongSelected = practice.feedback === 'wrong' && isSelected

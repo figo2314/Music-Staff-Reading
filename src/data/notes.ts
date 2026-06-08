@@ -24,6 +24,8 @@ export const TREBLE_NOTES: NoteItem[] = [
   { id: 'D5', clef: 'treble', name: 'D', octave: 5, labelFixedDo: 'Re', staffStep: 6 },
   { id: 'E5', clef: 'treble', name: 'E', octave: 5, labelFixedDo: 'Mi', staffStep: 7 },
   { id: 'F5', clef: 'treble', name: 'F', octave: 5, labelFixedDo: 'Fa', staffStep: 8 },
+  { id: 'G5', clef: 'treble', name: 'G', octave: 5, labelFixedDo: 'Sol', staffStep: 9 },
+  { id: 'A5', clef: 'treble', name: 'A', octave: 5, labelFixedDo: 'La', staffStep: 10 },
 ]
 
 export const NOTES_BY_ID = TREBLE_NOTES.reduce<Record<string, NoteItem>>((acc, note) => {
