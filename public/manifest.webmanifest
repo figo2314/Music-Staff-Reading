@@ -1,0 +1,18 @@
+{
+  "name": "音符卡片 - 五线谱认谱练习",
+  "short_name": "音符卡片",
+  "description": "适合儿童的五线谱认谱卡片练习网站",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4faf8",
+  "theme_color": "#18a999",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

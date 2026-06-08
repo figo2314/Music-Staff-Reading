@@ -1,0 +1,17 @@
+server {
+    listen 80;
+    server_name example.com;
+
+    root /var/www/note-recognition;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico|webmanifest)$ {
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000";
+        try_files $uri =404;
+    }
+}
