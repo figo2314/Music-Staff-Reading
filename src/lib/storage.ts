@@ -2,11 +2,16 @@ import { LEVELS } from '../data/notes'
 import type { AppState, NoteProgress } from '../types'
 
 const STORAGE_KEY = 'staff_note_cards_state_v1'
+const STORAGE_VERSION = 2
+
+type PersistedAppState = Partial<AppState> & {
+  storageVersion?: number
+}
 
 export const defaultAppState: AppState = {
   settings: {
     dailyQuestionCount: 10,
-    noteLabelMode: 'letter',
+    noteLabelMode: 'fixedDo',
     soundEnabled: true,
     animationLevel: 'standard',
     currentLevelId: LEVELS[0].id,
@@ -47,9 +52,15 @@ export function loadAppState(): AppState {
       return defaultAppState
     }
 
-    const parsed = JSON.parse(raw) as Partial<AppState>
+    const parsed = JSON.parse(raw) as PersistedAppState
+    const migratedSettings = {
+      ...defaultAppState.settings,
+      ...parsed.settings,
+      noteLabelMode: parsed.storageVersion ? (parsed.settings?.noteLabelMode ?? defaultAppState.settings.noteLabelMode) : 'fixedDo',
+    }
+
     return {
-      settings: { ...defaultAppState.settings, ...parsed.settings },
+      settings: migratedSettings,
       noteProgress: parsed.noteProgress ?? {},
       sessions: parsed.sessions ?? [],
       rewards: { ...defaultAppState.rewards, ...parsed.rewards },
@@ -64,7 +75,7 @@ export function saveAppState(state: AppState): void {
     return
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, storageVersion: STORAGE_VERSION }))
 }
 
 export function resetAppState(): AppState {
