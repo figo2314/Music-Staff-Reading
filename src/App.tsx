@@ -23,7 +23,8 @@ import './App.css'
 import { PianoKeyboard } from './components/PianoKeyboard'
 import { StaffCanvas } from './components/StaffCanvas'
 import { getLevel, getNoteDisplay, getNoteLabel, LEVELS, NOTES_BY_ID } from './data/notes'
-import { playFeedbackTone } from './lib/audio'
+import { playFeedbackTone, playPianoNote } from './lib/audio'
+import { launchCompletionConfetti } from './lib/celebration'
 import { formatShortDate, getLocalDateKey } from './lib/date'
 import {
   buildAnswerOptions,
@@ -151,7 +152,11 @@ function App() {
     const records = [...practice.records, record]
 
     if (state.settings.soundEnabled) {
-      playFeedbackTone(isCorrect ? 'correct' : 'wrong')
+      if (selectedNoteId) {
+        playPianoNote(selectedNoteId)
+      } else {
+        playFeedbackTone(isCorrect ? 'correct' : 'wrong')
+      }
     }
 
     setPractice({
@@ -176,6 +181,7 @@ function App() {
           if (state.settings.soundEnabled) {
             playFeedbackTone('complete')
           }
+          launchCompletionConfetti(state.settings.animationLevel === 'simple')
           return {
             ...current,
             records,
@@ -416,6 +422,7 @@ function PracticeView({
   const answeredCount = practice.records.length
   const progress = practice.summary ? 100 : Math.round((answeredCount / practice.total) * 100)
   const handlePianoClick = (noteId: string) => onAnswer(noteId.replace(/\d/g, '') as AnswerName, noteId)
+  const combo = getTrailingCorrectStreak(practice.records)
 
   if (practice.summary) {
     const session = practice.summary.session
@@ -428,6 +435,7 @@ function PracticeView({
           <Sparkles />
           <Star fill="currentColor" />
         </div>
+        <p className="celebration-title">太棒了！</p>
         <h1>完成练习</h1>
         <p className="muted">今天的小舞台已经点亮。</p>
         <div className="finish-score">
@@ -481,6 +489,16 @@ function PracticeView({
 
       <div className={`note-card ${practice.feedback}`}>
         <StaffCanvas note={practice.question.note} feedback={practice.feedback} />
+        {practice.feedback === 'correct' && combo >= 2 && (
+          <div
+            key={`${practice.question.id}-${combo}`}
+            className={`combo-pop ${combo >= 5 ? 'combo-fire' : combo >= 3 ? 'combo-hot' : ''}`}
+            aria-live="polite"
+          >
+            <span aria-hidden="true">🔥</span>
+            连击 x{combo}!
+          </div>
+        )}
       </div>
 
       <div className="feedback-zone">
@@ -861,6 +879,19 @@ function getBestCorrectStreak(records: AnswerRecord[]): number {
   }
 
   return best
+}
+
+function getTrailingCorrectStreak(records: AnswerRecord[]): number {
+  let streak = 0
+
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    if (!records[index].isCorrect) {
+      break
+    }
+    streak += 1
+  }
+
+  return streak
 }
 
 export default App
