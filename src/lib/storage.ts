@@ -1,7 +1,7 @@
 import type { AppState, NoteProgress } from '../types'
 
 const STORAGE_KEY = 'staff_note_cards_state_v1'
-const STORAGE_VERSION = 3
+const STORAGE_VERSION = 4
 
 type PersistedAppState = Partial<AppState> & {
   storageVersion?: number
@@ -11,6 +11,7 @@ export const defaultAppState: AppState = {
   settings: {
     dailyQuestionCount: 15,
     noteLabelMode: 'fixedDo',
+    answerMode: 'text',
     soundEnabled: true,
     animationLevel: 'standard',
     currentLevelId: 'treble-mix',

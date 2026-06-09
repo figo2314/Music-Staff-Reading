@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Award,
   BarChart3,
@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import './App.css'
+import { PianoKeyboard } from './components/PianoKeyboard'
 import { StaffCanvas } from './components/StaffCanvas'
 import { getLevel, getNoteDisplay, getNoteLabel, LEVELS, NOTES_BY_ID } from './data/notes'
 import { playFeedbackTone } from './lib/audio'
@@ -35,6 +36,7 @@ import {
 import { loadAppState, resetAppState, saveAppState } from './lib/storage'
 import type {
   AnswerRecord,
+  AnswerName,
   AppState,
   NoteItem,
   NoteName,
@@ -59,7 +61,7 @@ interface PracticeState {
   records: AnswerRecord[]
   question: QuestionState
   feedback: 'idle' | 'correct' | 'wrong'
-  selectedAnswer?: NoteName
+  selectedAnswer?: AnswerName
   summary?: PracticeSummary
 }
 
@@ -75,10 +77,20 @@ function App() {
   const [state, setState] = useState<AppState>(() => loadAppState())
   const [view, setView] = useState<ViewName>('home')
   const [practice, setPractice] = useState<PracticeState | null>(null)
+  const advanceTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     saveAppState(state)
   }, [state])
+
+  useEffect(
+    () => () => {
+      if (advanceTimerRef.current !== null) {
+        window.clearTimeout(advanceTimerRef.current)
+      }
+    },
+    [],
+  )
 
   const todaySessions = useMemo(() => {
     const today = getLocalDateKey()
@@ -90,7 +102,15 @@ function App() {
   const weakNoteIds = getWeakNoteIds(state.noteProgress)
   const masteredCount = Object.values(state.noteProgress).filter((item) => item.mastered).length
 
+  const clearAdvanceTimer = () => {
+    if (advanceTimerRef.current !== null) {
+      window.clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = null
+    }
+  }
+
   const startPractice = (mode: PracticeMode, levelId = state.settings.currentLevelId) => {
+    clearAdvanceTimer()
     const notes = getAvailableNotes(levelId, mode === 'review', state.noteProgress)
     const questionNote = chooseWeightedNote(notes, state.noteProgress)
     setPractice({
@@ -110,7 +130,7 @@ function App() {
     setView('practice')
   }
 
-  const answerQuestion = (answer: NoteName) => {
+  const answerQuestion = (answer: AnswerName) => {
     if (!practice || practice.feedback !== 'idle') {
       return
     }
@@ -138,9 +158,11 @@ function App() {
       selectedAnswer: answer,
     })
 
-    window.setTimeout(() => {
+    const practiceStartedAt = practice.startedAt
+    advanceTimerRef.current = window.setTimeout(() => {
+      advanceTimerRef.current = null
       setPractice((current) => {
-        if (!current) {
+        if (!current || current.startedAt !== practiceStartedAt) {
           return current
         }
 
@@ -178,6 +200,12 @@ function App() {
     }, state.settings.animationLevel === 'simple' ? 450 : 760)
   }
 
+  const leavePractice = (nextView: ViewName) => {
+    clearAdvanceTimer()
+    setPractice(null)
+    setView(nextView)
+  }
+
   const updateSettings = (settings: Partial<UserSettings>) => {
     setState((current) => ({
       ...current,
@@ -196,7 +224,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={view === 'practice' ? 'app-shell practice-active' : 'app-shell'}>
       <main className="main-surface">
         {view === 'home' && (
           <HomeView
@@ -218,16 +246,11 @@ function App() {
           <PracticeView
             practice={practice}
             labelMode={state.settings.noteLabelMode}
+            answerMode={state.settings.answerMode}
             onAnswer={answerQuestion}
             onRestart={() => startPractice(practice.mode, practice.levelId)}
-            onHome={() => {
-              setPractice(null)
-              setView('home')
-            }}
-            onHistory={() => {
-              setPractice(null)
-              setView('history')
-            }}
+            onHome={() => leavePractice('home')}
+            onHistory={() => leavePractice('history')}
           />
         )}
 
@@ -258,26 +281,25 @@ function App() {
         {view === 'privacy' && <PrivacyView onBack={() => setView('settings')} />}
       </main>
 
-      <nav className="bottom-nav" aria-label="主导航">
-        {navItems.map((item) => {
-          const Icon = item.icon
-          const isActive = view === item.view
-          return (
-            <button
-              key={item.view}
-              className={isActive ? 'nav-item active' : 'nav-item'}
-              type="button"
-              onClick={() => {
-                setPractice(null)
-                setView(item.view)
-              }}
-            >
-              <Icon aria-hidden="true" size={20} />
-              <span>{item.label}</span>
-            </button>
-          )
-        })}
-      </nav>
+      {view !== 'practice' && (
+        <nav className="bottom-nav" aria-label="主导航">
+          {navItems.map((item) => {
+            const Icon = item.icon
+            const isActive = view === item.view
+            return (
+              <button
+                key={item.view}
+                className={isActive ? 'nav-item active' : 'nav-item'}
+                type="button"
+                onClick={() => leavePractice(item.view)}
+              >
+                <Icon aria-hidden="true" size={20} />
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+      )}
     </div>
   )
 }
@@ -344,9 +366,9 @@ function HomeView({
           开始今日练习
           <ChevronRight aria-hidden="true" size={20} />
         </button>
-        <button className="secondary-button" type="button" onClick={onReview}>
+        <button className="secondary-button" type="button" onClick={onReview} disabled={weakCount === 0}>
           <RotateCcw aria-hidden="true" size={19} />
-          复习薄弱音
+          {weakCount > 0 ? `复习薄弱音（${weakCount}）` : '暂无薄弱音需要复习'}
         </button>
       </div>
 
@@ -371,6 +393,7 @@ function HomeView({
 function PracticeView({
   practice,
   labelMode,
+  answerMode,
   onAnswer,
   onRestart,
   onHome,
@@ -378,7 +401,8 @@ function PracticeView({
 }: {
   practice: PracticeState
   labelMode: AppState['settings']['noteLabelMode']
-  onAnswer: (answer: NoteName) => void
+  answerMode: AppState['settings']['answerMode']
+  onAnswer: (answer: AnswerName) => void
   onRestart: () => void
   onHome: () => void
   onHistory: () => void
@@ -386,10 +410,12 @@ function PracticeView({
   const correctAnswer = practice.question.note.name
   const answeredCount = practice.records.length
   const progress = practice.summary ? 100 : Math.round((answeredCount / practice.total) * 100)
+  const handlePianoClick = (note: string) => onAnswer(note.replace(/\d/g, '') as AnswerName)
 
   if (practice.summary) {
     const session = practice.summary.session
     const accuracy = session.questionCount ? Math.round((session.correctCount / session.questionCount) * 100) : 0
+    const bestStreak = getBestCorrectStreak(session.records)
     return (
       <section className="screen finish-screen">
         <div className="finish-burst" aria-hidden="true">
@@ -407,7 +433,7 @@ function PracticeView({
           <MetricCard icon={Star} label="获得星星" value={`${session.earnedStars}`} />
           <MetricCard icon={Check} label="答对题数" value={`${session.correctCount}/${session.questionCount}`} />
           <MetricCard icon={Clock3} label="平均用时" value={`${(session.avgResponseTimeMs / 1000).toFixed(1)}s`} />
-          <MetricCard icon={BarChart3} label="薄弱音" value={`${practice.summary.weakNoteIds.length} 个`} />
+          <MetricCard icon={BarChart3} label="最高连对" value={`${bestStreak} 题`} />
         </div>
         {(practice.summary.newBadges.length > 0 || practice.summary.newStickers.length > 0) && (
           <div className="reward-strip">
@@ -466,31 +492,42 @@ function PracticeView({
         )}
       </div>
 
-      <div className="answer-grid">
-        {practice.question.answerOptions.map((answer) => {
-          const isSelected = practice.selectedAnswer === answer
-          const isCorrect = practice.feedback !== 'idle' && answer === correctAnswer
-          const isWrongSelected = practice.feedback === 'wrong' && isSelected
-          return (
-            <button
-              key={answer}
-              type="button"
-              className={[
-                'answer-button',
-                isCorrect ? 'correct' : '',
-                isWrongSelected ? 'wrong' : '',
-                isSelected ? 'selected' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              onClick={() => onAnswer(answer)}
-              disabled={practice.feedback !== 'idle'}
-            >
-              {getNoteLabel(answer, labelMode)}
-            </button>
-          )
-        })}
-      </div>
+      {answerMode === 'text' ? (
+        <div className="answer-grid">
+          {practice.question.answerOptions.map((answer) => {
+            const isSelected = practice.selectedAnswer === answer
+            const isCorrect = practice.feedback !== 'idle' && answer === correctAnswer
+            const isWrongSelected = practice.feedback === 'wrong' && isSelected
+            return (
+              <button
+                key={answer}
+                type="button"
+                className={[
+                  'answer-button',
+                  isCorrect ? 'correct' : '',
+                  isWrongSelected ? 'wrong' : '',
+                  isSelected ? 'selected' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                onClick={() => onAnswer(answer)}
+                disabled={practice.feedback !== 'idle'}
+              >
+                {getNoteLabel(answer, labelMode)}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <PianoKeyboard
+          disabled={practice.feedback !== 'idle'}
+          feedback={practice.feedback}
+          labelMode={labelMode}
+          selectedAnswer={practice.selectedAnswer}
+          correctAnswer={correctAnswer}
+          onPianoClick={handlePianoClick}
+        />
+      )}
     </section>
   )
 }
@@ -680,6 +717,26 @@ function SettingsView({
         </div>
       </div>
 
+      <div className="setting-group">
+        <label>回答方式</label>
+        <div className="segmented">
+          <button
+            type="button"
+            className={settings.answerMode === 'text' ? 'active' : ''}
+            onClick={() => onUpdate({ answerMode: 'text' })}
+          >
+            文字按钮
+          </button>
+          <button
+            type="button"
+            className={settings.answerMode === 'piano' ? 'active' : ''}
+            onClick={() => onUpdate({ answerMode: 'piano' })}
+          >
+            钢琴键盘
+          </button>
+        </div>
+      </div>
+
       <button className="setting-row" type="button" onClick={() => onUpdate({ soundEnabled: !settings.soundEnabled })}>
         <div>
           <strong>音效</strong>
@@ -787,6 +844,18 @@ function resultlessProgressPreview(state: AppState, records: AnswerRecord[]) {
     }
   }
   return preview
+}
+
+function getBestCorrectStreak(records: AnswerRecord[]): number {
+  let best = 0
+  let current = 0
+
+  for (const record of records) {
+    current = record.isCorrect ? current + 1 : 0
+    best = Math.max(best, current)
+  }
+
+  return best
 }
 
 export default App

@@ -1,8 +1,14 @@
 export type NoteName = 'C' | 'D' | 'E' | 'F' | 'G' | 'A' | 'B'
 
+export type AccidentalNoteName = 'C#' | 'D#' | 'F#' | 'G#' | 'A#'
+
+export type AnswerName = NoteName | AccidentalNoteName
+
 export type Clef = 'treble' | 'bass'
 
 export type NoteLabelMode = 'letter' | 'fixedDo'
+
+export type AnswerMode = 'text' | 'piano'
 
 export type AnimationLevel = 'standard' | 'simple'
 
@@ -31,6 +37,7 @@ export interface LevelConfig {
 export interface UserSettings {
   dailyQuestionCount: 5 | 10 | 15 | 20
   noteLabelMode: NoteLabelMode
+  answerMode: AnswerMode
   soundEnabled: boolean
   animationLevel: AnimationLevel
   currentLevelId: string
@@ -39,7 +46,7 @@ export interface UserSettings {
 export interface AnswerRecord {
   questionId: string
   noteId: string
-  selectedAnswer: NoteName
+  selectedAnswer: AnswerName
   correctAnswer: NoteName
   isCorrect: boolean
   responseTimeMs: number
