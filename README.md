@@ -28,6 +28,44 @@ npm run build
 
 构建产物在 `dist/`，可以直接用 Nginx 或任意静态网站服务托管。
 
+## 固定更新工作流
+
+本项目使用以下固定流程更新线上网站：
+
+```text
+本地修改和验证
+  -> 提交到本地 Git
+  -> 推送到 GitHub 仓库 main 分支
+  -> 异地部署服务器定时自动拉取 GitHub
+  -> 服务器自动构建并同步到 Nginx 站点目录
+```
+
+GitHub 仓库：
+
+```text
+https://github.com/figo2314/Music-Staff-Reading
+```
+
+每次修改完成后必须执行：
+
+```bash
+npm run build
+npm run lint
+git add <本次修改的文件>
+git commit -m "描述本次修改"
+git push origin main
+```
+
+只有成功推送到 GitHub 的更新，异地服务器才能自动拉取并部署。本地修改或仅本地提交不会更新线上网站。
+
+推送后可检查本地与远程是否同步：
+
+```bash
+git status --short --branch
+```
+
+输出为 `main...origin/main` 且没有其他修改时，表示本地工作区与 GitHub 已同步。
+
 ## 部署
 
 服务器定时拉取 GitHub 并部署的说明见：
