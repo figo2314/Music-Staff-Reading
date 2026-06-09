@@ -47,7 +47,9 @@ export interface AnswerRecord {
   questionId: string
   noteId: string
   selectedAnswer: AnswerName
+  selectedNoteId?: string
   correctAnswer: NoteName
+  correctNoteId?: string
   isCorrect: boolean
   responseTimeMs: number
   answeredAt: number

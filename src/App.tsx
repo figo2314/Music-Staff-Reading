@@ -62,6 +62,7 @@ interface PracticeState {
   question: QuestionState
   feedback: 'idle' | 'correct' | 'wrong'
   selectedAnswer?: AnswerName
+  selectedNoteId?: string
   summary?: PracticeSummary
 }
 
@@ -130,17 +131,19 @@ function App() {
     setView('practice')
   }
 
-  const answerQuestion = (answer: AnswerName) => {
+  const answerQuestion = (answer: AnswerName, selectedNoteId?: string) => {
     if (!practice || practice.feedback !== 'idle') {
       return
     }
 
-    const isCorrect = answer === practice.question.note.name
+    const isCorrect = selectedNoteId ? selectedNoteId === practice.question.note.id : answer === practice.question.note.name
     const record: AnswerRecord = {
       questionId: practice.question.id,
       noteId: practice.question.note.id,
       selectedAnswer: answer,
+      selectedNoteId,
       correctAnswer: practice.question.note.name,
+      correctNoteId: practice.question.note.id,
       isCorrect,
       responseTimeMs: Date.now() - practice.question.startedAt,
       answeredAt: Date.now(),
@@ -156,6 +159,7 @@ function App() {
       records,
       feedback: isCorrect ? 'correct' : 'wrong',
       selectedAnswer: answer,
+      selectedNoteId,
     })
 
     const practiceStartedAt = practice.startedAt
@@ -188,6 +192,7 @@ function App() {
           ...current,
           records,
           selectedAnswer: undefined,
+          selectedNoteId: undefined,
           feedback: 'idle',
           question: {
             id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -402,7 +407,7 @@ function PracticeView({
   practice: PracticeState
   labelMode: AppState['settings']['noteLabelMode']
   answerMode: AppState['settings']['answerMode']
-  onAnswer: (answer: AnswerName) => void
+  onAnswer: (answer: AnswerName, selectedNoteId?: string) => void
   onRestart: () => void
   onHome: () => void
   onHistory: () => void
@@ -410,7 +415,7 @@ function PracticeView({
   const correctAnswer = practice.question.note.name
   const answeredCount = practice.records.length
   const progress = practice.summary ? 100 : Math.round((answeredCount / practice.total) * 100)
-  const handlePianoClick = (note: string) => onAnswer(note.replace(/\d/g, '') as AnswerName)
+  const handlePianoClick = (noteId: string) => onAnswer(noteId.replace(/\d/g, '') as AnswerName, noteId)
 
   if (practice.summary) {
     const session = practice.summary.session
@@ -523,8 +528,8 @@ function PracticeView({
           disabled={practice.feedback !== 'idle'}
           feedback={practice.feedback}
           labelMode={labelMode}
-          selectedAnswer={practice.selectedAnswer}
-          correctAnswer={correctAnswer}
+          selectedNoteId={practice.selectedNoteId}
+          correctNoteId={practice.question.note.id}
           onPianoClick={handlePianoClick}
         />
       )}

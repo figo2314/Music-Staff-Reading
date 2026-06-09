@@ -12,8 +12,8 @@ interface PianoKeyboardProps {
   disabled: boolean
   feedback: 'idle' | 'correct' | 'wrong'
   labelMode: NoteLabelMode
-  selectedAnswer?: AnswerName
-  correctAnswer: NoteName
+  selectedNoteId?: string
+  correctNoteId: string
   onPianoClick: (note: string) => void
 }
 
@@ -30,6 +30,7 @@ const WHITE_KEYS: PianoKey[] = [
   { id: 'E5', answer: 'E', kind: 'white' },
   { id: 'F5', answer: 'F', kind: 'white' },
   { id: 'G5', answer: 'G', kind: 'white' },
+  { id: 'A5', answer: 'A', kind: 'white' },
 ]
 
 const BLACK_KEYS: PianoKey[] = [
@@ -41,14 +42,15 @@ const BLACK_KEYS: PianoKey[] = [
   { id: 'C#5', answer: 'C#', kind: 'black', whiteIndex: 8 },
   { id: 'D#5', answer: 'D#', kind: 'black', whiteIndex: 9 },
   { id: 'F#5', answer: 'F#', kind: 'black', whiteIndex: 11 },
+  { id: 'G#5', answer: 'G#', kind: 'black', whiteIndex: 12 },
 ]
 
 export function PianoKeyboard({
   disabled,
   feedback,
   labelMode,
-  selectedAnswer,
-  correctAnswer,
+  selectedNoteId,
+  correctNoteId,
   onPianoClick,
 }: PianoKeyboardProps) {
   return (
@@ -59,7 +61,7 @@ export function PianoKeyboard({
             <button
               key={key.id}
               type="button"
-              className={getKeyClassName(key, feedback, selectedAnswer, correctAnswer)}
+              className={getKeyClassName(key, feedback, selectedNoteId, correctNoteId)}
               data-note={key.id}
               disabled={disabled}
               aria-label={key.id}
@@ -74,7 +76,7 @@ export function PianoKeyboard({
           <button
             key={key.id}
             type="button"
-            className={getKeyClassName(key, feedback, selectedAnswer, correctAnswer)}
+            className={getKeyClassName(key, feedback, selectedNoteId, correctNoteId)}
             data-note={key.id}
             disabled={disabled}
             aria-label={key.id}
@@ -90,11 +92,11 @@ export function PianoKeyboard({
 function getKeyClassName(
   key: PianoKey,
   feedback: PianoKeyboardProps['feedback'],
-  selectedAnswer: AnswerName | undefined,
-  correctAnswer: NoteName,
+  selectedNoteId: string | undefined,
+  correctNoteId: string,
 ): string {
-  const isSelected = selectedAnswer === key.answer
-  const isCorrect = feedback !== 'idle' && key.answer === correctAnswer
+  const isSelected = selectedNoteId === key.id
+  const isCorrect = feedback !== 'idle' && key.id === correctNoteId
   const isWrongSelected = feedback === 'wrong' && isSelected
 
   return [
