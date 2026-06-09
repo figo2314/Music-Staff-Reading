@@ -103,6 +103,7 @@ function getKeyClassName(
     'piano-key',
     key.kind,
     isCorrect ? 'correct' : '',
+    isCorrect && feedback === 'wrong' ? 'hint' : '',
     isWrongSelected ? 'wrong' : '',
     isSelected ? 'selected' : '',
   ]

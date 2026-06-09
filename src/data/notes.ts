@@ -1,18 +1,23 @@
-import type { LevelConfig, NoteItem, NoteLabelMode, NoteName } from '../types'
+import type { AnswerName, LevelConfig, NoteItem, NoteLabelMode } from '../types'
 
-export const ANSWER_ORDER: NoteName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
+export const ANSWER_ORDER: AnswerName[] = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-const fixedDoLabels: Record<NoteName, string> = {
+const fixedDoLabels: Record<AnswerName, string> = {
   C: 'Do',
+  'C#': 'Do♯',
   D: 'Re',
+  'D#': 'Re♯',
   E: 'Mi',
   F: 'Fa',
+  'F#': 'Fa♯',
   G: 'Sol',
+  'G#': 'Sol♯',
   A: 'La',
+  'A#': 'La♯',
   B: 'Si',
 }
 
-export const TREBLE_NOTES: NoteItem[] = [
+export const NATURAL_TREBLE_NOTES: NoteItem[] = [
   { id: 'C4', clef: 'treble', name: 'C', octave: 4, labelFixedDo: 'Do', staffStep: -2, ledgerLines: [-2] },
   { id: 'D4', clef: 'treble', name: 'D', octave: 4, labelFixedDo: 'Re', staffStep: -1 },
   { id: 'E4', clef: 'treble', name: 'E', octave: 4, labelFixedDo: 'Mi', staffStep: 0 },
@@ -27,6 +32,22 @@ export const TREBLE_NOTES: NoteItem[] = [
   { id: 'G5', clef: 'treble', name: 'G', octave: 5, labelFixedDo: 'Sol', staffStep: 9 },
   { id: 'A5', clef: 'treble', name: 'A', octave: 5, labelFixedDo: 'La', staffStep: 10 },
 ]
+
+export const ACCIDENTAL_TREBLE_NOTES: NoteItem[] = NATURAL_TREBLE_NOTES.flatMap((note) =>
+  ['E', 'B'].includes(note.name) || note.id === 'A5'
+    ? []
+    : [
+        {
+          ...note,
+          id: `${note.name}#${note.octave}`,
+          name: `${note.name}#` as AnswerName,
+          labelFixedDo: `${note.labelFixedDo}♯`,
+          accidental: '#' as const,
+        },
+      ],
+)
+
+export const TREBLE_NOTES = [...NATURAL_TREBLE_NOTES, ...ACCIDENTAL_TREBLE_NOTES]
 
 export const NOTES_BY_ID = TREBLE_NOTES.reduce<Record<string, NoteItem>>((acc, note) => {
   acc[note.id] = note
@@ -66,7 +87,7 @@ export const LEVELS: LevelConfig[] = [
     id: 'treble-mix',
     title: '高音谱号混合',
     subtitle: 'C 到 F 全部混合',
-    noteIds: TREBLE_NOTES.map((note) => note.id),
+    noteIds: NATURAL_TREBLE_NOTES.map((note) => note.id),
     accent: '#8f7ae5',
   },
 ]
@@ -75,7 +96,7 @@ export function getLevel(levelId: string): LevelConfig {
   return LEVELS.find((level) => level.id === levelId) ?? LEVELS[0]
 }
 
-export function getNoteLabel(noteName: NoteName, mode: NoteLabelMode): string {
+export function getNoteLabel(noteName: AnswerName, mode: NoteLabelMode): string {
   return mode === 'fixedDo' ? fixedDoLabels[noteName] : noteName
 }
 

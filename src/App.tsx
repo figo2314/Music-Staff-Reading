@@ -40,7 +40,6 @@ import type {
   AnswerName,
   AppState,
   NoteItem,
-  NoteName,
   PracticeMode,
   PracticeSummary,
   UserSettings,
@@ -51,7 +50,7 @@ interface QuestionState {
   id: string
   note: NoteItem
   startedAt: number
-  answerOptions: NoteName[]
+  answerOptions: AnswerName[]
 }
 
 interface PracticeState {
@@ -62,6 +61,7 @@ interface PracticeState {
   records: AnswerRecord[]
   question: QuestionState
   feedback: 'idle' | 'correct' | 'wrong'
+  questionHadWrong: boolean
   selectedAnswer?: AnswerName
   selectedNoteId?: string
   summary?: PracticeSummary
@@ -113,7 +113,8 @@ function App() {
 
   const startPractice = (mode: PracticeMode, levelId = state.settings.currentLevelId) => {
     clearAdvanceTimer()
-    const notes = getAvailableNotes(levelId, mode === 'review', state.noteProgress)
+    const includeAccidentals = state.settings.difficultyMode === 'chromatic'
+    const notes = getAvailableNotes(levelId, mode === 'review', state.noteProgress, includeAccidentals)
     const questionNote = chooseWeightedNote(notes, state.noteProgress)
     setPractice({
       mode,
@@ -125,9 +126,10 @@ function App() {
         id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         note: questionNote,
         startedAt: Date.now(),
-        answerOptions: buildAnswerOptions(),
+        answerOptions: buildAnswerOptions(includeAccidentals),
       },
       feedback: 'idle',
+      questionHadWrong: false,
     })
     setView('practice')
   }
@@ -138,6 +140,43 @@ function App() {
     }
 
     const isCorrect = selectedNoteId ? selectedNoteId === practice.question.note.id : answer === practice.question.note.name
+    if (state.settings.soundEnabled) {
+      if (selectedNoteId) {
+        playPianoNote(selectedNoteId)
+      }
+      if (!isCorrect) {
+        playFeedbackTone('wrong')
+      } else if (!selectedNoteId) {
+        playFeedbackTone('correct')
+      }
+    }
+
+    if (!isCorrect) {
+      setPractice({
+        ...practice,
+        feedback: 'wrong',
+        questionHadWrong: true,
+        selectedAnswer: answer,
+        selectedNoteId,
+      })
+
+      const practiceStartedAt = practice.startedAt
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null
+        setPractice((current) =>
+          current && current.startedAt === practiceStartedAt
+            ? {
+                ...current,
+                feedback: 'idle',
+                selectedAnswer: undefined,
+                selectedNoteId: undefined,
+              }
+            : current,
+        )
+      }, state.settings.animationLevel === 'simple' ? 700 : 1150)
+      return
+    }
+
     const record: AnswerRecord = {
       questionId: practice.question.id,
       noteId: practice.question.note.id,
@@ -145,24 +184,16 @@ function App() {
       selectedNoteId,
       correctAnswer: practice.question.note.name,
       correctNoteId: practice.question.note.id,
-      isCorrect,
+      isCorrect: !practice.questionHadWrong,
       responseTimeMs: Date.now() - practice.question.startedAt,
       answeredAt: Date.now(),
     }
     const records = [...practice.records, record]
 
-    if (state.settings.soundEnabled) {
-      if (selectedNoteId) {
-        playPianoNote(selectedNoteId)
-      } else {
-        playFeedbackTone(isCorrect ? 'correct' : 'wrong')
-      }
-    }
-
     setPractice({
       ...practice,
       records,
-      feedback: isCorrect ? 'correct' : 'wrong',
+      feedback: 'correct',
       selectedAnswer: answer,
       selectedNoteId,
     })
@@ -185,13 +216,14 @@ function App() {
           return {
             ...current,
             records,
-            feedback: isCorrect ? 'correct' : 'wrong',
+            feedback: 'correct',
             summary: result.summary,
           }
         }
 
         const simulatedProgress = resultlessProgressPreview(state, records)
-        const notes = getAvailableNotes(current.levelId, current.mode === 'review', simulatedProgress)
+        const includeAccidentals = state.settings.difficultyMode === 'chromatic'
+        const notes = getAvailableNotes(current.levelId, current.mode === 'review', simulatedProgress, includeAccidentals)
         const recentNoteIds = records.map((item) => item.noteId)
         const nextNote = chooseWeightedNote(notes, simulatedProgress, recentNoteIds)
         return {
@@ -200,11 +232,12 @@ function App() {
           selectedAnswer: undefined,
           selectedNoteId: undefined,
           feedback: 'idle',
+          questionHadWrong: false,
           question: {
             id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
             note: nextNote,
             startedAt: Date.now(),
-            answerOptions: buildAnswerOptions(),
+            answerOptions: buildAnswerOptions(includeAccidentals),
           },
         }
       })
@@ -239,7 +272,9 @@ function App() {
       <main className="main-surface">
         {view === 'home' && (
           <HomeView
-            currentLevelTitle={currentLevel.title}
+            currentLevelTitle={
+              state.settings.difficultyMode === 'chromatic' ? '全部琴键（包含黑键）' : currentLevel.title
+            }
             todayAnswered={todayAnswered}
             todayCorrect={todayCorrect}
             totalTarget={state.settings.dailyQuestionCount}
@@ -510,7 +545,7 @@ function PracticeView({
         )}
         {practice.feedback === 'wrong' && (
           <span className="wrong-text">
-            <X size={18} /> 正确答案是 {getNoteLabel(correctAnswer, labelMode)}
+            <Sparkles size={18} /> 呀，其实是 {getNoteLabel(correctAnswer, labelMode)}，再试一次！
           </span>
         )}
       </div>
@@ -758,6 +793,27 @@ function SettingsView({
             钢琴键盘
           </button>
         </div>
+      </div>
+
+      <div className="setting-group">
+        <label>难度</label>
+        <div className="segmented">
+          <button
+            type="button"
+            className={settings.difficultyMode === 'natural' ? 'active' : ''}
+            onClick={() => onUpdate({ difficultyMode: 'natural' })}
+          >
+            基础白键
+          </button>
+          <button
+            type="button"
+            className={settings.difficultyMode === 'chromatic' ? 'active' : ''}
+            onClick={() => onUpdate({ difficultyMode: 'chromatic', answerMode: 'piano' })}
+          >
+            包含黑键
+          </button>
+        </div>
+        <p className="setting-hint">选择包含黑键后，所有琴键音都可能出现。</p>
       </div>
 
       <button className="setting-row" type="button" onClick={() => onUpdate({ soundEnabled: !settings.soundEnabled })}>

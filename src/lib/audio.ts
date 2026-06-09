@@ -6,12 +6,17 @@ export function playFeedbackTone(kind: 'correct' | 'wrong' | 'complete'): void {
     return
   }
 
+  if (kind === 'wrong') {
+    playTryAgainTone(context)
+    return
+  }
+
   const oscillator = context.createOscillator()
   const gain = context.createGain()
 
-  const frequency = kind === 'correct' ? 660 : kind === 'complete' ? 880 : 220
+  const frequency = kind === 'correct' ? 660 : 880
   oscillator.frequency.setValueAtTime(frequency, context.currentTime)
-  oscillator.type = kind === 'wrong' ? 'triangle' : 'sine'
+  oscillator.type = 'sine'
   gain.gain.setValueAtTime(0.0001, context.currentTime)
   gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.02)
   gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22)
@@ -20,6 +25,24 @@ export function playFeedbackTone(kind: 'correct' | 'wrong' | 'complete'): void {
   gain.connect(context.destination)
   oscillator.start()
   oscillator.stop(context.currentTime + 0.24)
+}
+
+function playTryAgainTone(context: AudioContext): void {
+  const now = context.currentTime
+  const gain = context.createGain()
+  gain.gain.setValueAtTime(0.0001, now)
+  gain.gain.exponentialRampToValueAtTime(0.045, now + 0.025)
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48)
+  gain.connect(context.destination)
+
+  for (const [index, frequency] of [392, 523.25].entries()) {
+    const oscillator = context.createOscillator()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(frequency, now)
+    oscillator.connect(gain)
+    oscillator.start(now + index * 0.09)
+    oscillator.stop(now + 0.5)
+  }
 }
 
 export function playPianoNote(noteId: string): void {

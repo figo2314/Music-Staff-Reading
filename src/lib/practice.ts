@@ -1,4 +1,4 @@
-import { ANSWER_ORDER, getLevel, NOTES_BY_ID } from '../data/notes'
+import { ANSWER_ORDER, getLevel, NOTES_BY_ID, TREBLE_NOTES } from '../data/notes'
 import { getLocalDateKey, getYesterdayKey } from './date'
 import { createEmptyProgress } from './storage'
 import type {
@@ -13,9 +13,15 @@ import type {
   Sticker,
 } from '../types'
 
-export function getAvailableNotes(levelId: string, reviewOnly: boolean, progress: Record<string, NoteProgress>): NoteItem[] {
+export function getAvailableNotes(
+  levelId: string,
+  reviewOnly: boolean,
+  progress: Record<string, NoteProgress>,
+  includeAccidentals = false,
+): NoteItem[] {
   const level = getLevel(levelId)
-  const notes = level.noteIds.map((noteId) => NOTES_BY_ID[noteId]).filter(Boolean)
+  const levelNotes = level.noteIds.map((noteId) => NOTES_BY_ID[noteId]).filter(Boolean)
+  const notes = includeAccidentals ? TREBLE_NOTES : levelNotes
 
   if (!reviewOnly) {
     return notes
@@ -107,8 +113,8 @@ export function getWeakNoteIds(progress: Record<string, NoteProgress>): string[]
     .map((item) => item.noteId)
 }
 
-export function buildAnswerOptions(): typeof ANSWER_ORDER {
-  return shuffle(ANSWER_ORDER)
+export function buildAnswerOptions(includeAccidentals = false): typeof ANSWER_ORDER {
+  return shuffle(includeAccidentals ? ANSWER_ORDER : ANSWER_ORDER.filter((note) => !note.includes('#')))
 }
 
 export function shuffle<T>(items: readonly T[]): T[] {

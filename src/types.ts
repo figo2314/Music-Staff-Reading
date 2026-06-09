@@ -10,6 +10,8 @@ export type NoteLabelMode = 'letter' | 'fixedDo'
 
 export type AnswerMode = 'text' | 'piano'
 
+export type DifficultyMode = 'natural' | 'chromatic'
+
 export type AnimationLevel = 'standard' | 'simple'
 
 export type ViewName = 'home' | 'practice' | 'levels' | 'rewards' | 'history' | 'settings' | 'privacy'
@@ -19,10 +21,11 @@ export type PracticeMode = 'daily' | 'review' | 'level'
 export interface NoteItem {
   id: string
   clef: Clef
-  name: NoteName
+  name: AnswerName
   octave: number
   labelFixedDo: string
   staffStep: number
+  accidental?: '#'
   ledgerLines?: number[]
 }
 
@@ -38,6 +41,7 @@ export interface UserSettings {
   dailyQuestionCount: 5 | 10 | 15 | 20
   noteLabelMode: NoteLabelMode
   answerMode: AnswerMode
+  difficultyMode: DifficultyMode
   soundEnabled: boolean
   animationLevel: AnimationLevel
   currentLevelId: string
@@ -48,7 +52,7 @@ export interface AnswerRecord {
   noteId: string
   selectedAnswer: AnswerName
   selectedNoteId?: string
-  correctAnswer: NoteName
+  correctAnswer: AnswerName
   correctNoteId?: string
   isCorrect: boolean
   responseTimeMs: number

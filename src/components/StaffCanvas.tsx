@@ -54,7 +54,7 @@ function drawStaff(
   const bottomLineY = topLineY + lineGap * 4
   const noteX = width * 0.6
   const noteY = bottomLineY - note.staffStep * (lineGap / 2)
-  const highlight = feedback === 'correct' ? '#d9f4df' : feedback === 'wrong' ? '#ffe1dc' : '#eef8f6'
+  const highlight = feedback === 'correct' ? '#d9f4df' : feedback === 'wrong' ? '#fff3cf' : '#eef8f6'
 
   ctx.save()
   ctx.fillStyle = highlight
@@ -85,6 +85,9 @@ function drawStaff(
   ctx.fillText('𝄞', left + lineGap * 1.25, topLineY + lineGap * 2.3)
 
   drawLedgerLines(ctx, note, noteX, bottomLineY, lineGap)
+  if (note.accidental === '#') {
+    drawSharp(ctx, noteX - lineGap * 1.5, noteY, lineGap)
+  }
   drawNoteHead(ctx, noteX, noteY, lineGap, feedback)
   drawStem(ctx, noteX, noteY, lineGap, note.staffStep)
 
@@ -92,6 +95,16 @@ function drawStaff(
   ctx.font = `600 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
   ctx.textAlign = 'right'
   ctx.fillText('高音谱号', right, topLineY - lineGap * 1.05)
+}
+
+function drawSharp(ctx: CanvasRenderingContext2D, x: number, y: number, lineGap: number) {
+  ctx.save()
+  ctx.fillStyle = '#26313b'
+  ctx.font = `700 ${lineGap * 1.8}px Georgia, "Times New Roman", serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('♯', x, y)
+  ctx.restore()
 }
 
 function drawLedgerLines(
@@ -127,7 +140,7 @@ function drawNoteHead(
   ctx.save()
   ctx.translate(x, y)
   ctx.rotate(-0.28)
-  ctx.fillStyle = feedback === 'correct' ? '#138f63' : feedback === 'wrong' ? '#c74f45' : '#1d2730'
+  ctx.fillStyle = feedback === 'correct' ? '#138f63' : feedback === 'wrong' ? '#8d6b2b' : '#1d2730'
   ctx.beginPath()
   ctx.ellipse(0, 0, lineGap * 0.78, lineGap * 0.52, 0, 0, Math.PI * 2)
   ctx.fill()
