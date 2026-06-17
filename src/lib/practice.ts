@@ -157,8 +157,11 @@ export function finishPracticeSession(
   }
 
   const noteProgress = { ...state.noteProgress }
-  if (sessionType === 'note') {
+  if (sessionType === 'note' || sessionType === 'smart') {
     for (const record of records) {
+      if (!NOTES_BY_ID[record.noteId]) {
+        continue
+      }
       const existing = noteProgress[record.noteId] ?? createEmptyProgress(record.noteId)
       noteProgress[record.noteId] = updateProgress(existing, record)
     }
@@ -179,7 +182,7 @@ export function finishPracticeSession(
       session,
       newBadges,
       newStickers,
-      weakNoteIds: sessionType === 'note' ? getWeakNoteIds(noteProgress) : [],
+      weakNoteIds: sessionType === 'note' || sessionType === 'smart' ? getWeakNoteIds(noteProgress) : [],
     },
   }
 }
@@ -286,6 +289,9 @@ function updateRewards(
   }
   if (session.sessionType === 'melody') {
     unlockBadge('first-melody', '第一句小旋律', '完成第一次小旋律练习')
+  }
+  if (session.sessionType === 'smart') {
+    unlockBadge('first-smart', '智能练习开启', '完成第一次智能今日练习')
   }
   if (streakDays >= 3) {
     unlockBadge('streak-3', '三天连练', '连续练习 3 天')

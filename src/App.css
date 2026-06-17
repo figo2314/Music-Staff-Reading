@@ -228,6 +228,77 @@ h2 {
   gap: 9px;
 }
 
+.coach-panel {
+  min-height: 72px;
+  border: 1px solid rgba(24, 169, 153, 0.18);
+  border-radius: 8px;
+  background: rgba(238, 248, 246, 0.82);
+  color: #1f2d35;
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+}
+
+.coach-panel svg {
+  color: #168779;
+}
+
+.coach-panel div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.coach-panel strong,
+.coach-panel span {
+  overflow-wrap: anywhere;
+}
+
+.coach-panel span {
+  color: #5f737c;
+  font-size: 0.86rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.advanced-practice {
+  border: 1px solid rgba(85, 118, 130, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.advanced-practice summary {
+  min-height: 48px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px;
+  color: #176f66;
+  font-weight: 900;
+  list-style: none;
+}
+
+.advanced-practice summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-practice summary svg {
+  transition: transform 0.2s ease;
+}
+
+.advanced-practice[open] summary svg {
+  transform: rotate(90deg);
+}
+
+.advanced-practice .mode-row-grid {
+  padding: 0 10px 10px;
+}
+
 .mode-row {
   min-height: 76px;
   border: 1px solid rgba(85, 118, 130, 0.12);

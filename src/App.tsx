@@ -121,9 +121,17 @@ interface TapResult {
   offsets: number[]
 }
 
+interface PracticeDiagnosis {
+  title: string
+  detail: string
+}
+
 const TAP_BEAT_MS = 667
 const TAP_PREP_BEATS = 4
 const MELODY_ID_SEPARATOR = '|'
+const SMART_DECK_SEPARATOR = ':'
+
+type SmartDeckKind = 'note' | 'rhythm' | 'melody'
 
 const navItems: Array<{ view: ViewName; label: string; icon: typeof Home }> = [
   { view: 'home', label: '练习', icon: Home },
@@ -215,7 +223,9 @@ function App() {
   const todaySessions = useMemo(() => {
     const today = getLocalDateKey()
     return state.sessions.filter(
-      (session) => (session.sessionType ?? 'note') === 'note' && getLocalDateKey(new Date(session.startedAt)) === today,
+      (session) =>
+        ((session.sessionType ?? 'note') === 'note' || session.sessionType === 'smart') &&
+        getLocalDateKey(new Date(session.startedAt)) === today,
     )
   }, [state.sessions])
   const todayAnswered = todaySessions.reduce((sum, session) => sum + session.questionCount, 0)
@@ -236,7 +246,6 @@ function App() {
     const includeAccidentals = state.settings.difficultyMode === 'chromatic'
     const notes = getAvailableNotes(levelId, mode === 'review', state.noteProgress, includeAccidentals)
     const noteDeck = buildNoteDeck(notes, state.noteProgress, state.settings.dailyQuestionCount)
-    const questionNote = NOTES_BY_ID[noteDeck[0]]
     setPractice({
       sessionType: 'note',
       mode,
@@ -246,13 +255,28 @@ function App() {
       records: [],
       questionDeck: noteDeck,
       currentIndex: 0,
-      question: {
-        kind: 'note',
-        id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        note: questionNote,
-        startedAt: Date.now(),
-        answerOptions: buildAnswerOptions(includeAccidentals),
-      },
+      question: createNoteQuestion(noteDeck[0], includeAccidentals),
+      feedback: 'idle',
+      questionHadWrong: false,
+    })
+    setView('practice')
+  }
+
+  const startSmartPractice = () => {
+    clearAdvanceTimer()
+    const includeAccidentals = state.settings.difficultyMode === 'chromatic'
+    const notes = getAvailableNotes(state.settings.currentLevelId, false, state.noteProgress, includeAccidentals)
+    const smartDeck = buildSmartDeck(notes, state.noteProgress, state.settings.dailyQuestionCount)
+    setPractice({
+      sessionType: 'smart',
+      mode: 'daily',
+      levelId: 'smart-daily',
+      total: smartDeck.length,
+      startedAt: Date.now(),
+      records: [],
+      questionDeck: smartDeck,
+      currentIndex: 0,
+      question: createQuestionFromDeckItem(smartDeck[0], includeAccidentals),
       feedback: 'idle',
       questionHadWrong: false,
     })
@@ -262,7 +286,6 @@ function App() {
   const startRhythmPractice = () => {
     clearAdvanceTimer()
     const rhythmDeck = buildRhythmDeck(state.settings.dailyQuestionCount)
-    const rhythm = RHYTHM_PATTERNS_BY_ID[rhythmDeck[0]]
     setPractice({
       sessionType: 'rhythm',
       mode: 'daily',
@@ -272,13 +295,7 @@ function App() {
       records: [],
       questionDeck: rhythmDeck,
       currentIndex: 0,
-      question: {
-        kind: 'rhythm',
-        id: `r-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        rhythm,
-        startedAt: Date.now(),
-        answerOptions: buildRhythmAnswerOptions(rhythm.id),
-      },
+      question: createRhythmQuestion(rhythmDeck[0]),
       feedback: 'idle',
       questionHadWrong: false,
     })
@@ -288,7 +305,6 @@ function App() {
   const startRhythmTapPractice = () => {
     clearAdvanceTimer()
     const rhythmDeck = buildRhythmDeck(state.settings.dailyQuestionCount)
-    const rhythm = RHYTHM_PATTERNS_BY_ID[rhythmDeck[0]]
     setPractice({
       sessionType: 'rhythmTap',
       mode: 'daily',
@@ -298,13 +314,7 @@ function App() {
       records: [],
       questionDeck: rhythmDeck,
       currentIndex: 0,
-      question: {
-        kind: 'rhythmTap',
-        id: `t-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        rhythm,
-        startedAt: Date.now(),
-        tapBeats: getTapBeats(rhythm),
-      },
+      question: createRhythmTapQuestion(rhythmDeck[0]),
       feedback: 'idle',
       questionHadWrong: false,
       tapTimes: [],
@@ -442,30 +452,8 @@ function App() {
           }
         }
 
-        if (current.sessionType === 'rhythm') {
-          const nextIndex = current.currentIndex + 1
-          const nextRhythm = RHYTHM_PATTERNS_BY_ID[current.questionDeck[nextIndex]]
-          return {
-            ...current,
-            records,
-            currentIndex: nextIndex,
-            selectedAnswer: undefined,
-            selectedNoteId: undefined,
-            feedback: 'idle',
-            questionHadWrong: false,
-            question: {
-              kind: 'rhythm',
-              id: `r-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-              rhythm: nextRhythm,
-              startedAt: Date.now(),
-              answerOptions: buildRhythmAnswerOptions(nextRhythm.id),
-            },
-          }
-        }
-
-        const includeAccidentals = state.settings.difficultyMode === 'chromatic'
         const nextIndex = current.currentIndex + 1
-        const nextNote = NOTES_BY_ID[current.questionDeck[nextIndex]]
+        const includeAccidentals = state.settings.difficultyMode === 'chromatic'
         return {
           ...current,
           records,
@@ -474,13 +462,12 @@ function App() {
           selectedNoteId: undefined,
           feedback: 'idle',
           questionHadWrong: false,
-          question: {
-            id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            kind: 'note',
-            note: nextNote,
-            startedAt: Date.now(),
-            answerOptions: buildAnswerOptions(includeAccidentals),
-          },
+          question:
+            current.sessionType === 'smart'
+              ? createQuestionFromDeckItem(current.questionDeck[nextIndex], includeAccidentals)
+              : current.sessionType === 'rhythm'
+                ? createRhythmQuestion(current.questionDeck[nextIndex])
+                : createNoteQuestion(current.questionDeck[nextIndex], includeAccidentals),
         }
       })
     }, state.settings.animationLevel === 'simple' ? 450 : 760)
@@ -606,6 +593,7 @@ function App() {
         }
 
         const nextIndex = current.currentIndex + 1
+        const includeAccidentals = state.settings.difficultyMode === 'chromatic'
         return {
           ...current,
           records,
@@ -614,7 +602,10 @@ function App() {
           selectedNoteId: undefined,
           feedback: 'idle',
           questionHadWrong: false,
-          question: createMelodyQuestion(current.questionDeck[nextIndex]),
+          question:
+            current.sessionType === 'smart'
+              ? createQuestionFromDeckItem(current.questionDeck[nextIndex], includeAccidentals)
+              : createMelodyQuestion(current.questionDeck[nextIndex]),
         }
       })
     }, state.settings.animationLevel === 'simple' ? 450 : 760)
@@ -779,7 +770,8 @@ function App() {
             totalStars={state.rewards.totalStars}
             weakCount={weakNoteIds.length}
             masteredCount={masteredCount}
-            onStart={() => startPractice('daily')}
+            diagnosis={getPracticeDiagnosis(state.noteProgress, weakNoteIds)}
+            onStart={startSmartPractice}
             onStartRhythm={startRhythmPractice}
             onStartRhythmTap={startRhythmTapPractice}
             onStartMelody={startMelodyPractice}
@@ -805,6 +797,8 @@ function App() {
                   ? startRhythmPractice()
                   : practice.sessionType === 'melody'
                     ? startMelodyPractice()
+                    : practice.sessionType === 'smart'
+                      ? startSmartPractice()
                     : startPractice(practice.mode, practice.levelId)
             }
             onHome={() => leavePractice('home')}
@@ -871,6 +865,7 @@ function HomeView({
   totalStars,
   weakCount,
   masteredCount,
+  diagnosis,
   onStart,
   onStartRhythm,
   onStartRhythmTap,
@@ -886,6 +881,7 @@ function HomeView({
   totalStars: number
   weakCount: number
   masteredCount: number
+  diagnosis: PracticeDiagnosis
   onStart: () => void
   onStartRhythm: () => void
   onStartRhythmTap: () => void
@@ -927,39 +923,52 @@ function HomeView({
       <section className="practice-mode-panel" aria-label="练习模式">
         <button className="primary-button" type="button" onClick={onStart}>
           <Music2 aria-hidden="true" size={22} />
-          开始今日练习
+          开始智能练习
           <ChevronRight aria-hidden="true" size={20} />
         </button>
-        <div className="mode-row-grid">
-          <button className="mode-row" type="button" onClick={onReview} disabled={weakCount === 0}>
-            <RotateCcw aria-hidden="true" size={19} />
-            <span>
-              <strong>薄弱音复习</strong>
-              <small>{weakCount > 0 ? `${weakCount} 个音需要多练` : '暂无薄弱音'}</small>
-            </span>
-          </button>
-          <button className="mode-row" type="button" onClick={onStartRhythm}>
-            <BarChart3 aria-hidden="true" size={19} />
-            <span>
-              <strong>节奏识别</strong>
-              <small>看一小节，选节奏型</small>
-            </span>
-          </button>
-          <button className="mode-row" type="button" onClick={onStartRhythmTap}>
-            <Timer aria-hidden="true" size={19} />
-            <span>
-              <strong>节奏跟拍</strong>
-              <small>跟着谱面点拍</small>
-            </span>
-          </button>
-          <button className="mode-row" type="button" onClick={onStartMelody}>
-            <Music2 aria-hidden="true" size={19} />
-            <span>
-              <strong>小旋律练习</strong>
-              <small>看谱后按顺序弹</small>
-            </span>
-          </button>
+        <div className="coach-panel">
+          <BarChart3 aria-hidden="true" size={20} />
+          <div>
+            <strong>{diagnosis.title}</strong>
+            <span>{diagnosis.detail}</span>
+          </div>
         </div>
+        <details className="advanced-practice">
+          <summary>
+            <span>专项练习</span>
+            <ChevronRight aria-hidden="true" size={18} />
+          </summary>
+          <div className="mode-row-grid">
+            <button className="mode-row" type="button" onClick={onReview} disabled={weakCount === 0}>
+              <RotateCcw aria-hidden="true" size={19} />
+              <span>
+                <strong>薄弱音复习</strong>
+                <small>{weakCount > 0 ? `${weakCount} 个音需要多练` : '暂无薄弱音'}</small>
+              </span>
+            </button>
+            <button className="mode-row" type="button" onClick={onStartRhythm}>
+              <BarChart3 aria-hidden="true" size={19} />
+              <span>
+                <strong>节奏识别</strong>
+                <small>看一小节，选节奏型</small>
+              </span>
+            </button>
+            <button className="mode-row" type="button" onClick={onStartRhythmTap}>
+              <Timer aria-hidden="true" size={19} />
+              <span>
+                <strong>节奏跟拍</strong>
+                <small>跟着谱面点拍</small>
+              </span>
+            </button>
+            <button className="mode-row" type="button" onClick={onStartMelody}>
+              <Music2 aria-hidden="true" size={19} />
+              <span>
+                <strong>小旋律练习</strong>
+                <small>看谱后按顺序弹</small>
+              </span>
+            </button>
+          </div>
+        </details>
       </section>
 
       <div className="metric-grid">
@@ -1036,13 +1045,21 @@ function PracticeView({
           <Star fill="currentColor" />
         </div>
         <p className="celebration-title">太棒了！</p>
-        <h1>{practice.sessionType === 'rhythmTap' ? '完成跟拍' : `完成${isRhythmPractice ? '节奏' : '练习'}`}</h1>
+        <h1>
+          {practice.sessionType === 'smart'
+            ? '完成智能练习'
+            : practice.sessionType === 'rhythmTap'
+              ? '完成跟拍'
+              : `完成${isRhythmPractice ? '节奏' : '练习'}`}
+        </h1>
         <p className="muted">
-          {practice.sessionType === 'rhythmTap'
-            ? '手感和节拍正在对齐。'
-            : isRhythmPractice
-              ? '节拍感又稳了一点。'
-              : '今天的小舞台已经点亮。'}
+          {practice.sessionType === 'smart'
+            ? '认音、节奏和短旋律都照顾到了。'
+            : practice.sessionType === 'rhythmTap'
+              ? '手感和节拍正在对齐。'
+              : isRhythmPractice
+                ? '节拍感又稳了一点。'
+                : '今天的小舞台已经点亮。'}
         </p>
         <div className="finish-score">
           <span>{accuracy}%</span>
@@ -1127,7 +1144,7 @@ function PracticeView({
                   : `按谱面点拍：${tapCount}/${tapTargetCount}`
                 : '先看节奏，准备好就开始跟拍'
               : melodyQuestion
-                ? `第 ${melodyQuestion.currentStep + 1}/${melodyQuestion.notes.length} 个音`
+                ? `${getMelodyDirectionLabel(melodyQuestion.notes)} · 第 ${melodyQuestion.currentStep + 1}/${melodyQuestion.notes.length} 个音`
               : isRhythmPractice
                 ? '这一小节是哪种节奏？'
                 : '这个音是什么？'}
@@ -1674,6 +1691,90 @@ function buildNoteDeck(
   return weightedNoteIds.slice(0, Math.min(requestedCount, weightedNoteIds.length))
 }
 
+function buildSmartDeck(
+  notes: NoteItem[],
+  progress: AppState['noteProgress'],
+  requestedCount: number,
+): string[] {
+  const total = Math.max(5, requestedCount)
+  const weakNotes = notes.filter((note) => isWeakNote(progress[note.id]))
+  const noteCount = Math.max(1, Math.round(total * 0.4))
+  const weakCount = weakNotes.length > 0 ? Math.max(1, Math.round(total * 0.25)) : 0
+  const rhythmCount = Math.max(1, Math.round(total * 0.15))
+  const melodyCount = Math.max(1, total - noteCount - weakCount - rhythmCount)
+
+  const noteDeck = buildNoteDeck(notes, progress, noteCount + weakCount)
+  const weakDeck = weakNotes.length > 0 ? buildNoteDeck(weakNotes, progress, weakCount) : []
+  const rhythmDeck = buildRhythmDeck(rhythmCount)
+  const melodyDeck = buildMelodyDeck(notes, melodyCount)
+  const smartItems = [
+    ...noteDeck.slice(0, noteCount).map((noteId) => createSmartDeckItem('note', noteId)),
+    ...weakDeck.map((noteId) => createSmartDeckItem('note', noteId)),
+    ...rhythmDeck.map((rhythmId) => createSmartDeckItem('rhythm', rhythmId)),
+    ...melodyDeck.map((melodyId) => createSmartDeckItem('melody', melodyId)),
+  ]
+
+  return shuffleLocal(Array.from(new Set(smartItems))).slice(0, total)
+}
+
+function createSmartDeckItem(kind: SmartDeckKind, id: string): string {
+  return `${kind}${SMART_DECK_SEPARATOR}${id}`
+}
+
+function parseSmartDeckItem(item: string): { kind: SmartDeckKind; id: string } {
+  const separatorIndex = item.indexOf(SMART_DECK_SEPARATOR)
+  if (separatorIndex < 0) {
+    return { kind: 'note', id: item }
+  }
+  return {
+    kind: item.slice(0, separatorIndex) as SmartDeckKind,
+    id: item.slice(separatorIndex + 1),
+  }
+}
+
+function createQuestionFromDeckItem(deckItem: string, includeAccidentals: boolean): QuestionState {
+  const item = parseSmartDeckItem(deckItem)
+  if (item.kind === 'rhythm') {
+    return createRhythmQuestion(item.id)
+  }
+  if (item.kind === 'melody') {
+    return createMelodyQuestion(item.id)
+  }
+  return createNoteQuestion(item.id, includeAccidentals)
+}
+
+function createNoteQuestion(noteId: string, includeAccidentals: boolean): NoteQuestionState {
+  return {
+    kind: 'note',
+    id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    note: NOTES_BY_ID[noteId],
+    startedAt: Date.now(),
+    answerOptions: buildAnswerOptions(includeAccidentals),
+  }
+}
+
+function createRhythmQuestion(rhythmId: string): RhythmQuestionState {
+  const rhythm = RHYTHM_PATTERNS_BY_ID[rhythmId]
+  return {
+    kind: 'rhythm',
+    id: `r-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    rhythm,
+    startedAt: Date.now(),
+    answerOptions: buildRhythmAnswerOptions(rhythm.id),
+  }
+}
+
+function createRhythmTapQuestion(rhythmId: string): RhythmTapQuestionState {
+  const rhythm = RHYTHM_PATTERNS_BY_ID[rhythmId]
+  return {
+    kind: 'rhythmTap',
+    id: `t-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    rhythm,
+    startedAt: Date.now(),
+    tapBeats: getTapBeats(rhythm),
+  }
+}
+
 function getNoteDeckPriority(note: NoteItem, progress: AppState['noteProgress']): number {
   const noteProgress = progress[note.id]
   const base = noteProgress ? 1 + noteProgress.wrongStreak * 4 + noteProgress.wrongAttempts * 0.35 : 8
@@ -1681,6 +1782,65 @@ function getNoteDeckPriority(note: NoteItem, progress: AppState['noteProgress'])
   const slowBonus = noteProgress?.recentResponseTimesMs.slice(-4).some((time) => time > 5500) ? 2 : 0
   const masteredPenalty = noteProgress?.mastered ? 4 : 0
   return base + slowBonus + freshness - masteredPenalty
+}
+
+function getPracticeDiagnosis(progress: AppState['noteProgress'], weakNoteIds: string[]): PracticeDiagnosis {
+  if (weakNoteIds.length === 0) {
+    return {
+      title: '今日智能练习',
+      detail: '会自动混合认音、节奏和小旋律，保持入口简单。',
+    }
+  }
+
+  const weakNotes = weakNoteIds.map((noteId) => NOTES_BY_ID[noteId]).filter(Boolean)
+  const slowCount = weakNoteIds.filter((noteId) =>
+    progress[noteId]?.recentResponseTimesMs.slice(-5).some((time) => time > 5500),
+  ).length
+  const wrongStreakCount = weakNoteIds.filter((noteId) => (progress[noteId]?.wrongStreak ?? 0) >= 2).length
+  const adjacentPair = getAdjacentWeakPair(weakNotes)
+
+  if (adjacentPair) {
+    return {
+      title: '相邻音容易混淆',
+      detail: `${adjacentPair[0]} 和 ${adjacentPair[1]} 会被放进今日练习里多对比几次。`,
+    }
+  }
+  if (wrongStreakCount > 0) {
+    return {
+      title: '先修正连续错音',
+      detail: `有 ${wrongStreakCount} 个音最近连续答错，今日练习会优先安排它们。`,
+    }
+  }
+  if (slowCount > 0) {
+    return {
+      title: '提升反应速度',
+      detail: `有 ${slowCount} 个音答得偏慢，今天会用短题组帮它们变熟。`,
+    }
+  }
+  return {
+    title: '薄弱音复习',
+    detail: `现在有 ${weakNoteIds.length} 个音需要多练，智能练习会自动穿插。`,
+  }
+}
+
+function getAdjacentWeakPair(notes: NoteItem[]): [string, string] | undefined {
+  const byClef = new Map<string, NoteItem[]>()
+  for (const note of notes) {
+    const group = byClef.get(note.clef) ?? []
+    group.push(note)
+    byClef.set(note.clef, group)
+  }
+
+  for (const group of byClef.values()) {
+    const sorted = [...group].sort((a, b) => a.staffStep - b.staffStep)
+    for (let index = 1; index < sorted.length; index += 1) {
+      if (Math.abs(sorted[index].staffStep - sorted[index - 1].staffStep) <= 1) {
+        return [getNoteDisplay(sorted[index - 1], 'letter'), getNoteDisplay(sorted[index], 'letter')]
+      }
+    }
+  }
+
+  return undefined
 }
 
 function getPlayableNoteId(note: NoteItem): string {
@@ -1744,7 +1904,33 @@ function createMelodyId(notes: NoteItem[]): string {
   return notes.map((note) => note.id).join(MELODY_ID_SEPARATOR)
 }
 
+function getMelodyDirectionLabel(notes: NoteItem[]): string {
+  if (notes.length < 2) {
+    return '小旋律'
+  }
+  const intervals = notes.slice(1).map((note, index) => note.staffStep - notes[index].staffStep)
+  const allUp = intervals.every((step) => step > 0)
+  const allDown = intervals.every((step) => step < 0)
+  const hasSkip = intervals.some((step) => Math.abs(step) >= 2)
+  if (allUp && hasSkip) {
+    return '上行跳进'
+  }
+  if (allDown && hasSkip) {
+    return '下行跳进'
+  }
+  if (allUp) {
+    return '上行级进'
+  }
+  if (allDown) {
+    return '下行级进'
+  }
+  return hasSkip ? '转向跳进' : '转向级进'
+}
+
 function getSessionTitle(sessionType: SessionType | undefined, levelId: string): string {
+  if (sessionType === 'smart') {
+    return '智能今日练习'
+  }
   if (sessionType === 'melody') {
     return '小旋律练习'
   }
