@@ -18,7 +18,7 @@ export type ViewName = 'home' | 'practice' | 'levels' | 'rewards' | 'history' | 
 
 export type PracticeMode = 'daily' | 'review' | 'level'
 
-export type SessionType = 'note' | 'rhythm' | 'rhythmTap'
+export type SessionType = 'note' | 'rhythm' | 'rhythmTap' | 'melody'
 
 export type RhythmValue = 'quarter' | 'half' | 'whole' | 'eighth' | 'quarterRest' | 'halfRest'
 

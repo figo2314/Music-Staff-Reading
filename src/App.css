@@ -224,7 +224,7 @@ h2 {
 
 .mode-row-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
 }
 
@@ -450,7 +450,8 @@ h2 {
   display: block;
 }
 
-.rhythm-staff {
+.rhythm-staff,
+.melody-staff {
   width: 100%;
   min-height: 268px;
   height: 100%;
@@ -1302,8 +1303,13 @@ h2 {
 
   .note-card,
   .staff-canvas,
-  .rhythm-staff {
+  .rhythm-staff,
+  .melody-staff {
     min-height: 390px;
+  }
+
+  .mode-row-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .answer-grid {

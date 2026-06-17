@@ -284,6 +284,9 @@ function updateRewards(
   if (session.sessionType === 'rhythm') {
     unlockBadge('first-rhythm', '第一小节节奏', '完成第一次节奏练习')
   }
+  if (session.sessionType === 'melody') {
+    unlockBadge('first-melody', '第一句小旋律', '完成第一次小旋律练习')
+  }
   if (streakDays >= 3) {
     unlockBadge('streak-3', '三天连练', '连续练习 3 天')
   }
