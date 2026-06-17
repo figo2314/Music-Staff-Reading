@@ -150,7 +150,7 @@ h2 {
   transition: stroke-dashoffset 0.4s ease;
 }
 
-.primary-actions,
+.practice-mode-panel,
 .finish-actions {
   display: grid;
   gap: 11px;
@@ -202,18 +202,6 @@ h2 {
   cursor: default;
 }
 
-.rhythm-start-button {
-  color: #7c5b11;
-  background: #fff8df;
-  border-color: rgba(246, 178, 59, 0.38);
-}
-
-.tap-start-button {
-  color: #365a85;
-  background: #eef5ff;
-  border-color: rgba(90, 141, 238, 0.28);
-}
-
 .text-button {
   min-height: 44px;
   border-radius: 8px;
@@ -232,6 +220,64 @@ h2 {
 
 .privacy-row {
   margin-top: 12px;
+}
+
+.mode-row-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.mode-row {
+  min-height: 76px;
+  border: 1px solid rgba(85, 118, 130, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f2d35;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  text-align: left;
+}
+
+.mode-row svg {
+  color: #168779;
+}
+
+.mode-row span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.mode-row strong,
+.mode-row small {
+  overflow-wrap: anywhere;
+}
+
+.mode-row strong {
+  font-size: 0.9rem;
+}
+
+.mode-row small {
+  color: #667882;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.mode-row:disabled {
+  color: #829198;
+  background: rgba(255, 255, 255, 0.58);
+  cursor: default;
+}
+
+.mode-row:disabled svg,
+.mode-row:disabled small {
+  color: #9aa7ad;
 }
 
 .metric-grid {
@@ -1291,6 +1337,10 @@ h2 {
   }
 
   .rhythm-answer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-row-grid {
     grid-template-columns: 1fr;
   }
 

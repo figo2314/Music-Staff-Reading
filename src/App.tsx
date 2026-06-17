@@ -752,25 +752,36 @@ function HomeView({
         </div>
       </section>
 
-      <div className="primary-actions">
+      <section className="practice-mode-panel" aria-label="练习模式">
         <button className="primary-button" type="button" onClick={onStart}>
           <Music2 aria-hidden="true" size={22} />
           开始今日练习
           <ChevronRight aria-hidden="true" size={20} />
         </button>
-        <button className="secondary-button" type="button" onClick={onReview} disabled={weakCount === 0}>
-          <RotateCcw aria-hidden="true" size={19} />
-          {weakCount > 0 ? `复习薄弱音（${weakCount}）` : '暂无薄弱音需要复习'}
-        </button>
-        <button className="secondary-button rhythm-start-button" type="button" onClick={onStartRhythm}>
-          <BarChart3 aria-hidden="true" size={19} />
-          节奏型练习
-        </button>
-        <button className="secondary-button tap-start-button" type="button" onClick={onStartRhythmTap}>
-          <Timer aria-hidden="true" size={19} />
-          节奏跟拍
-        </button>
-      </div>
+        <div className="mode-row-grid">
+          <button className="mode-row" type="button" onClick={onReview} disabled={weakCount === 0}>
+            <RotateCcw aria-hidden="true" size={19} />
+            <span>
+              <strong>薄弱音复习</strong>
+              <small>{weakCount > 0 ? `${weakCount} 个音需要多练` : '暂无薄弱音'}</small>
+            </span>
+          </button>
+          <button className="mode-row" type="button" onClick={onStartRhythm}>
+            <BarChart3 aria-hidden="true" size={19} />
+            <span>
+              <strong>节奏识别</strong>
+              <small>看一小节，选节奏型</small>
+            </span>
+          </button>
+          <button className="mode-row" type="button" onClick={onStartRhythmTap}>
+            <Timer aria-hidden="true" size={19} />
+            <span>
+              <strong>节奏跟拍</strong>
+              <small>跟着谱面点拍</small>
+            </span>
+          </button>
+        </div>
+      </section>
 
       <div className="metric-grid">
         <MetricCard icon={CalendarDays} label="今日题数" value={`${todayAnswered}/${totalTarget}`} />
