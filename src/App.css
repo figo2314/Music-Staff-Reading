@@ -562,6 +562,53 @@ h2 {
   opacity: 0.62;
 }
 
+.prep-count {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: #fff8df;
+  color: #a57311;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  font-size: 2.2rem;
+  font-weight: 1000;
+  box-shadow: 0 12px 28px rgba(166, 120, 25, 0.16);
+  animation: card-pop 0.48s ease both;
+}
+
+.tap-feedback-strip {
+  min-height: 34px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+}
+
+.tap-feedback {
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #365a85;
+  padding: 7px 11px;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.tap-feedback.good {
+  background: #e8f8f4;
+  color: #11796f;
+}
+
+.tap-feedback.early {
+  background: #fff8df;
+  color: #9c6a12;
+}
+
+.tap-feedback.late {
+  background: #fff0ee;
+  color: #bd4c42;
+}
+
 .tap-result {
   border-radius: 8px;
   background: rgba(238, 245, 255, 0.92);

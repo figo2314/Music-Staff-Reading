@@ -90,10 +90,18 @@ interface PracticeState {
   questionHadWrong: boolean
   selectedAnswer?: string
   selectedNoteId?: string
+  tapPrepStartedAt?: number
   tapStartedAt?: number
   tapTimes?: number[]
+  tapFeedbacks?: TapFeedback[]
   tapResult?: TapResult
   summary?: PracticeSummary
+}
+
+interface TapFeedback {
+  offsetMs: number
+  label: string
+  tone: 'good' | 'early' | 'late' | 'miss'
 }
 
 interface TapResult {
@@ -103,6 +111,9 @@ interface TapResult {
   label: string
   offsets: number[]
 }
+
+const TAP_BEAT_MS = 667
+const TAP_PREP_BEATS = 4
 
 const navItems: Array<{ view: ViewName; label: string; icon: typeof Home }> = [
   { view: 'home', label: '练习', icon: Home },
@@ -116,6 +127,7 @@ function App() {
   const [state, setState] = useState<AppState>(() => loadAppState())
   const [view, setView] = useState<ViewName>('home')
   const [practice, setPractice] = useState<PracticeState | null>(null)
+  const [clockTick, setClockTick] = useState(0)
   const advanceTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -130,6 +142,65 @@ function App() {
     },
     [],
   )
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || !practice || practice.question.kind !== 'rhythmTap' || practice.feedback !== 'idle') {
+        return
+      }
+
+      event.preventDefault()
+      if (!practice.tapStartedAt) {
+        setPractice((current) => {
+          if (!current || current.question.kind !== 'rhythmTap' || current.feedback !== 'idle') {
+            return current
+          }
+          const prepStartedAt = Date.now()
+          return {
+            ...current,
+            tapPrepStartedAt: prepStartedAt,
+            tapStartedAt: prepStartedAt + TAP_PREP_BEATS * TAP_BEAT_MS,
+            tapTimes: [],
+            tapFeedbacks: [],
+            tapResult: undefined,
+          }
+        })
+        return
+      }
+      if ((practice.tapTimes?.length ?? 0) < practice.question.tapBeats.length) {
+        setPractice((current) => {
+          if (!current || current.question.kind !== 'rhythmTap' || current.feedback !== 'idle' || !current.tapStartedAt) {
+            return current
+          }
+          const tapTimes = [...(current.tapTimes ?? []), Date.now()]
+          const offsetMs = getTapOffset(current.question.tapBeats, current.tapStartedAt, tapTimes)
+          const tapFeedbacks = [...(current.tapFeedbacks ?? []), getTapFeedback(offsetMs)]
+          if (state.settings.soundEnabled) {
+            playFeedbackTone('correct')
+          }
+          return {
+            ...current,
+            tapTimes: tapTimes.slice(0, current.question.tapBeats.length),
+            tapFeedbacks: tapFeedbacks.slice(0, current.question.tapBeats.length),
+          }
+        })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [practice, state.settings.soundEnabled])
+
+  useEffect(() => {
+    if (!practice?.tapPrepStartedAt || !practice.tapStartedAt || Date.now() >= practice.tapStartedAt) {
+      return
+    }
+
+    const timer = window.setInterval(() => setClockTick((tick) => tick + 1), 120)
+    return () => window.clearInterval(timer)
+  }, [practice?.tapPrepStartedAt, practice?.tapStartedAt])
+
+  void clockTick
 
   const todaySessions = useMemo(() => {
     const today = getLocalDateKey()
@@ -227,6 +298,7 @@ function App() {
       feedback: 'idle',
       questionHadWrong: false,
       tapTimes: [],
+      tapFeedbacks: [],
     })
     setView('practice')
   }
@@ -388,10 +460,13 @@ function App() {
         return current
       }
 
+      const prepStartedAt = Date.now()
       return {
         ...current,
-        tapStartedAt: Date.now(),
+        tapPrepStartedAt: prepStartedAt,
+        tapStartedAt: prepStartedAt + TAP_PREP_BEATS * TAP_BEAT_MS,
         tapTimes: [],
+        tapFeedbacks: [],
         tapResult: undefined,
       }
     })
@@ -404,6 +479,8 @@ function App() {
       }
 
       const tapTimes = [...(current.tapTimes ?? []), Date.now()]
+      const offsetMs = getTapOffset(current.question.tapBeats, current.tapStartedAt, tapTimes)
+      const tapFeedbacks = [...(current.tapFeedbacks ?? []), getTapFeedback(offsetMs)]
       if (state.settings.soundEnabled) {
         playFeedbackTone('correct')
       }
@@ -411,6 +488,7 @@ function App() {
       return {
         ...current,
         tapTimes: tapTimes.slice(0, current.question.tapBeats.length),
+        tapFeedbacks: tapFeedbacks.slice(0, current.question.tapBeats.length),
       }
     })
   }
@@ -481,7 +559,9 @@ function App() {
           selectedAnswer: undefined,
           selectedNoteId: undefined,
           tapStartedAt: undefined,
+          tapPrepStartedAt: undefined,
           tapTimes: [],
+          tapFeedbacks: [],
           tapResult: undefined,
           question: {
             kind: 'rhythmTap',
@@ -744,6 +824,7 @@ function PracticeView({
   const combo = getTrailingCorrectStreak(practice.records)
   const tapTargetCount = rhythmTapQuestion?.tapBeats.length ?? 0
   const tapCount = practice.tapTimes?.length ?? 0
+  const prepBeat = getPrepBeat(practice.tapPrepStartedAt, practice.tapStartedAt)
 
   if (practice.summary) {
     const session = practice.summary.session
@@ -839,7 +920,9 @@ function PracticeView({
           <span>
             {rhythmTapQuestion
               ? practice.tapStartedAt
-                ? `按谱面点拍：${tapCount}/${tapTargetCount}`
+                ? prepBeat
+                  ? `预备拍 ${prepBeat}`
+                  : `按谱面点拍：${tapCount}/${tapTargetCount}`
                 : '先看节奏，准备好就开始跟拍'
               : isRhythmPractice
                 ? '这一小节是哪种节奏？'
@@ -877,6 +960,8 @@ function PracticeView({
           hasStarted={Boolean(practice.tapStartedAt)}
           tapCount={tapCount}
           targetCount={tapTargetCount}
+          prepBeat={prepBeat}
+          feedbacks={practice.tapFeedbacks ?? []}
           result={practice.tapResult}
           onStart={onTapStart}
           onTap={onTapBeat}
@@ -992,6 +1077,8 @@ function RhythmTapControls({
   hasStarted,
   tapCount,
   targetCount,
+  prepBeat,
+  feedbacks,
   result,
   onStart,
   onTap,
@@ -1001,6 +1088,8 @@ function RhythmTapControls({
   hasStarted: boolean
   tapCount: number
   targetCount: number
+  prepBeat?: number
+  feedbacks: TapFeedback[]
   result?: TapResult
   onStart: () => void
   onTap: () => void
@@ -1022,11 +1111,28 @@ function RhythmTapControls({
         </button>
       ) : (
         <>
+          {prepBeat ? (
+            <div className="prep-count" aria-live="polite">
+              {prepBeat}
+            </div>
+          ) : (
+            <div className="tap-feedback-strip" aria-live="polite">
+              {feedbacks.length > 0 ? (
+                feedbacks.map((feedback, index) => (
+                  <span key={`${feedback.offsetMs}-${index}`} className={`tap-feedback ${feedback.tone}`}>
+                    {feedback.label}
+                  </span>
+                ))
+              ) : (
+                <span className="tap-feedback">空格键也可以点拍</span>
+              )}
+            </div>
+          )}
           <button
             className="tap-button"
             type="button"
             onClick={onTap}
-            disabled={disabled || tapCount >= targetCount}
+            disabled={disabled || Boolean(prepBeat) || tapCount >= targetCount}
             aria-label="点拍"
           >
             点
@@ -1391,9 +1497,38 @@ function getTapBeats(pattern: RhythmPattern): number[] {
   return beats
 }
 
+function getPrepBeat(prepStartedAt?: number, tapStartedAt?: number): number | undefined {
+  if (!prepStartedAt || !tapStartedAt) {
+    return undefined
+  }
+
+  const now = Date.now()
+  if (now >= tapStartedAt) {
+    return undefined
+  }
+  const elapsed = now - prepStartedAt
+  return Math.min(TAP_PREP_BEATS, Math.max(1, Math.floor(elapsed / TAP_BEAT_MS) + 1))
+}
+
+function getTapOffset(tapBeats: number[], startedAt: number, tapTimes: number[]): number {
+  const tapIndex = tapTimes.length - 1
+  const beat = tapBeats[tapIndex] ?? tapBeats[tapBeats.length - 1] ?? 0
+  return Math.round(tapTimes[tapIndex] - (startedAt + beat * TAP_BEAT_MS))
+}
+
+function getTapFeedback(offsetMs: number): TapFeedback {
+  const absOffset = Math.abs(offsetMs)
+  if (absOffset <= 110) {
+    return { offsetMs, label: '很准', tone: 'good' }
+  }
+  if (offsetMs < 0) {
+    return { offsetMs, label: '偏早', tone: 'early' }
+  }
+  return { offsetMs, label: '偏晚', tone: 'late' }
+}
+
 function scoreTapRhythm(tapBeats: number[], startedAt: number, tapTimes: number[]): TapResult {
-  const beatMs = 667
-  const offsets = tapBeats.map((beat, index) => Math.round((tapTimes[index] ?? Date.now()) - (startedAt + beat * beatMs)))
+  const offsets = tapBeats.map((beat, index) => Math.round((tapTimes[index] ?? Date.now()) - (startedAt + beat * TAP_BEAT_MS)))
   const absoluteOffsets = offsets.map((offset) => Math.abs(offset))
   const avgOffsetMs = absoluteOffsets.length
     ? Math.round(absoluteOffsets.reduce((sum, offset) => sum + offset, 0) / absoluteOffsets.length)
