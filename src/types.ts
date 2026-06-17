@@ -24,6 +24,7 @@ export type RhythmValue = 'quarter' | 'half' | 'whole' | 'eighth' | 'quarterRest
 
 export interface NoteItem {
   id: string
+  pitchId?: string
   clef: Clef
   name: AnswerName
   octave: number

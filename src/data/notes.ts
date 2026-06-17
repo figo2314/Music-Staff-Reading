@@ -33,6 +33,17 @@ export const NATURAL_TREBLE_NOTES: NoteItem[] = [
   { id: 'A5', clef: 'treble', name: 'A', octave: 5, labelFixedDo: 'La', staffStep: 10 },
 ]
 
+export const NATURAL_BASS_NOTES: NoteItem[] = [
+  { id: 'bass-C3', pitchId: 'C3', clef: 'bass', name: 'C', octave: 3, labelFixedDo: 'Do', staffStep: -2, ledgerLines: [-2] },
+  { id: 'bass-D3', pitchId: 'D3', clef: 'bass', name: 'D', octave: 3, labelFixedDo: 'Re', staffStep: -1 },
+  { id: 'bass-E3', pitchId: 'E3', clef: 'bass', name: 'E', octave: 3, labelFixedDo: 'Mi', staffStep: 0 },
+  { id: 'bass-F3', pitchId: 'F3', clef: 'bass', name: 'F', octave: 3, labelFixedDo: 'Fa', staffStep: 1 },
+  { id: 'bass-G3', pitchId: 'G3', clef: 'bass', name: 'G', octave: 3, labelFixedDo: 'Sol', staffStep: 2 },
+  { id: 'bass-A3', pitchId: 'A3', clef: 'bass', name: 'A', octave: 3, labelFixedDo: 'La', staffStep: 3 },
+  { id: 'bass-B3', pitchId: 'B3', clef: 'bass', name: 'B', octave: 3, labelFixedDo: 'Si', staffStep: 4 },
+  { id: 'bass-C4', pitchId: 'C4', clef: 'bass', name: 'C', octave: 4, labelFixedDo: 'Do', staffStep: 5 },
+]
+
 export const ACCIDENTAL_TREBLE_NOTES: NoteItem[] = NATURAL_TREBLE_NOTES.flatMap((note) =>
   ['E', 'B'].includes(note.name) || note.id === 'A5'
     ? []
@@ -48,8 +59,10 @@ export const ACCIDENTAL_TREBLE_NOTES: NoteItem[] = NATURAL_TREBLE_NOTES.flatMap(
 )
 
 export const TREBLE_NOTES = [...NATURAL_TREBLE_NOTES, ...ACCIDENTAL_TREBLE_NOTES]
+export const BASS_NOTES = [...NATURAL_BASS_NOTES]
+export const ALL_NOTES = [...TREBLE_NOTES, ...BASS_NOTES]
 
-export const NOTES_BY_ID = TREBLE_NOTES.reduce<Record<string, NoteItem>>((acc, note) => {
+export const NOTES_BY_ID = ALL_NOTES.reduce<Record<string, NoteItem>>((acc, note) => {
   acc[note.id] = note
   return acc
 }, {})
@@ -89,6 +102,20 @@ export const LEVELS: LevelConfig[] = [
     subtitle: 'C 到 F 全部混合',
     noteIds: NATURAL_TREBLE_NOTES.map((note) => note.id),
     accent: '#8f7ae5',
+  },
+  {
+    id: 'bass-foundation',
+    title: '低音谱号基础',
+    subtitle: '低音 C 到中央 C',
+    noteIds: NATURAL_BASS_NOTES.map((note) => note.id),
+    accent: '#5a8dee',
+  },
+  {
+    id: 'grand-staff-foundation',
+    title: '双谱表基础',
+    subtitle: '高音与低音混合',
+    noteIds: [...NATURAL_BASS_NOTES.map((note) => note.id), ...NATURAL_TREBLE_NOTES.slice(0, 8).map((note) => note.id)],
+    accent: '#d78316',
   },
 ]
 

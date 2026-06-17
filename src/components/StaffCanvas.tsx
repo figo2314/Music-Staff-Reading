@@ -79,10 +79,10 @@ function drawStaff(
   }
 
   ctx.fillStyle = '#23313a'
-  ctx.font = `${lineGap * 3.2}px Georgia, "Times New Roman", serif`
+  ctx.font = `${lineGap * (note.clef === 'bass' ? 2.8 : 3.2)}px Georgia, "Times New Roman", serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText('𝄞', left + lineGap * 1.25, topLineY + lineGap * 2.3)
+  ctx.fillText(note.clef === 'bass' ? '𝄢' : '𝄞', left + lineGap * 1.25, topLineY + lineGap * 2.3)
 
   drawLedgerLines(ctx, note, noteX, bottomLineY, lineGap)
   if (note.accidental === '#') {
@@ -94,7 +94,7 @@ function drawStaff(
   ctx.fillStyle = '#7a8791'
   ctx.font = `600 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
   ctx.textAlign = 'right'
-  ctx.fillText('高音谱号', right, topLineY - lineGap * 1.05)
+  ctx.fillText(note.clef === 'bass' ? '低音谱号' : '高音谱号', right, topLineY - lineGap * 1.05)
 }
 
 function drawSharp(ctx: CanvasRenderingContext2D, x: number, y: number, lineGap: number) {

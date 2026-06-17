@@ -238,7 +238,9 @@ function App() {
 
     let isCorrect: boolean
     if (practice.question.kind === 'note') {
-      isCorrect = selectedNoteId ? selectedNoteId === practice.question.note.id : answer === practice.question.note.name
+      isCorrect = selectedNoteId
+        ? selectedNoteId === getPlayableNoteId(practice.question.note)
+        : answer === practice.question.note.name
     } else {
       isCorrect = answer === practice.question.rhythm.id
     }
@@ -288,7 +290,7 @@ function App() {
             selectedAnswer: answer,
             selectedNoteId,
             correctAnswer: practice.question.note.name,
-            correctNoteId: practice.question.note.id,
+            correctNoteId: getPlayableNoteId(practice.question.note),
             isCorrect: !practice.questionHadWrong,
             responseTimeMs: Date.now() - practice.question.startedAt,
             answeredAt: Date.now(),
@@ -941,7 +943,7 @@ function PracticeView({
             feedback={practice.feedback}
             labelMode={labelMode}
             selectedNoteId={practice.selectedNoteId}
-            correctNoteId={noteQuestion.note.id}
+            correctNoteId={getPlayableNoteId(noteQuestion.note)}
             onPianoClick={handlePianoClick}
           />
         )
@@ -1133,7 +1135,7 @@ function HistoryView({ state }: { state: AppState }) {
             const note = NOTES_BY_ID[item.noteId]
             return (
               <span className="note-chip" key={item.noteId}>
-                {note ? `${note.name}${note.octave}` : item.noteId}
+                {note ? `${note.clef === 'bass' ? '低音' : '高音'} ${note.name}${note.octave}` : item.noteId}
                 <small>{item.wrongStreak > 0 ? `连错 ${item.wrongStreak}` : '需复习'}</small>
               </span>
             )
@@ -1351,6 +1353,10 @@ function getNoteDeckPriority(note: NoteItem, progress: AppState['noteProgress'])
   const slowBonus = noteProgress?.recentResponseTimesMs.slice(-4).some((time) => time > 5500) ? 2 : 0
   const masteredPenalty = noteProgress?.mastered ? 4 : 0
   return base + slowBonus + freshness - masteredPenalty
+}
+
+function getPlayableNoteId(note: NoteItem): string {
+  return note.pitchId ?? note.id
 }
 
 function buildRhythmDeck(requestedCount: number): string[] {

@@ -18,6 +18,13 @@ interface PianoKeyboardProps {
 }
 
 const WHITE_KEYS: PianoKey[] = [
+  { id: 'C3', answer: 'C', kind: 'white' },
+  { id: 'D3', answer: 'D', kind: 'white' },
+  { id: 'E3', answer: 'E', kind: 'white' },
+  { id: 'F3', answer: 'F', kind: 'white' },
+  { id: 'G3', answer: 'G', kind: 'white' },
+  { id: 'A3', answer: 'A', kind: 'white' },
+  { id: 'B3', answer: 'B', kind: 'white' },
   { id: 'C4', answer: 'C', kind: 'white' },
   { id: 'D4', answer: 'D', kind: 'white' },
   { id: 'E4', answer: 'E', kind: 'white' },
@@ -34,15 +41,20 @@ const WHITE_KEYS: PianoKey[] = [
 ]
 
 const BLACK_KEYS: PianoKey[] = [
-  { id: 'C#4', answer: 'C#', kind: 'black', whiteIndex: 1 },
-  { id: 'D#4', answer: 'D#', kind: 'black', whiteIndex: 2 },
-  { id: 'F#4', answer: 'F#', kind: 'black', whiteIndex: 4 },
-  { id: 'G#4', answer: 'G#', kind: 'black', whiteIndex: 5 },
-  { id: 'A#4', answer: 'A#', kind: 'black', whiteIndex: 6 },
-  { id: 'C#5', answer: 'C#', kind: 'black', whiteIndex: 8 },
-  { id: 'D#5', answer: 'D#', kind: 'black', whiteIndex: 9 },
-  { id: 'F#5', answer: 'F#', kind: 'black', whiteIndex: 11 },
-  { id: 'G#5', answer: 'G#', kind: 'black', whiteIndex: 12 },
+  { id: 'C#3', answer: 'C#', kind: 'black', whiteIndex: 1 },
+  { id: 'D#3', answer: 'D#', kind: 'black', whiteIndex: 2 },
+  { id: 'F#3', answer: 'F#', kind: 'black', whiteIndex: 4 },
+  { id: 'G#3', answer: 'G#', kind: 'black', whiteIndex: 5 },
+  { id: 'A#3', answer: 'A#', kind: 'black', whiteIndex: 6 },
+  { id: 'C#4', answer: 'C#', kind: 'black', whiteIndex: 8 },
+  { id: 'D#4', answer: 'D#', kind: 'black', whiteIndex: 9 },
+  { id: 'F#4', answer: 'F#', kind: 'black', whiteIndex: 11 },
+  { id: 'G#4', answer: 'G#', kind: 'black', whiteIndex: 12 },
+  { id: 'A#4', answer: 'A#', kind: 'black', whiteIndex: 13 },
+  { id: 'C#5', answer: 'C#', kind: 'black', whiteIndex: 15 },
+  { id: 'D#5', answer: 'D#', kind: 'black', whiteIndex: 16 },
+  { id: 'F#5', answer: 'F#', kind: 'black', whiteIndex: 18 },
+  { id: 'G#5', answer: 'G#', kind: 'black', whiteIndex: 19 },
 ]
 
 export function PianoKeyboard({
