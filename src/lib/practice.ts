@@ -10,6 +10,7 @@ import type {
   PracticeSession,
   PracticeSummary,
   RewardState,
+  SessionType,
   Sticker,
 } from '../types'
 
@@ -126,7 +127,13 @@ export function shuffle<T>(items: readonly T[]): T[] {
   return shuffled
 }
 
-export function finishPracticeSession(state: AppState, records: AnswerRecord[], levelId: string, startedAt: number): {
+export function finishPracticeSession(
+  state: AppState,
+  records: AnswerRecord[],
+  levelId: string,
+  startedAt: number,
+  sessionType: SessionType = 'note',
+): {
   state: AppState
   summary: PracticeSummary
 } {
@@ -138,6 +145,7 @@ export function finishPracticeSession(state: AppState, records: AnswerRecord[], 
   const earnedStars = getEarnedStars(correctCount, records.length)
   const session: PracticeSession = {
     id: `session-${startedAt}`,
+    sessionType,
     startedAt,
     endedAt,
     levelId,
@@ -149,9 +157,11 @@ export function finishPracticeSession(state: AppState, records: AnswerRecord[], 
   }
 
   const noteProgress = { ...state.noteProgress }
-  for (const record of records) {
-    const existing = noteProgress[record.noteId] ?? createEmptyProgress(record.noteId)
-    noteProgress[record.noteId] = updateProgress(existing, record)
+  if (sessionType === 'note') {
+    for (const record of records) {
+      const existing = noteProgress[record.noteId] ?? createEmptyProgress(record.noteId)
+      noteProgress[record.noteId] = updateProgress(existing, record)
+    }
   }
 
   const sessions = [session, ...state.sessions].slice(0, 90)
@@ -169,7 +179,7 @@ export function finishPracticeSession(state: AppState, records: AnswerRecord[], 
       session,
       newBadges,
       newStickers,
-      weakNoteIds: getWeakNoteIds(noteProgress),
+      weakNoteIds: sessionType === 'note' ? getWeakNoteIds(noteProgress) : [],
     },
   }
 }
@@ -270,6 +280,9 @@ function updateRewards(
 
   if (sessions.length >= 1) {
     unlockBadge('first-practice', '第一张乐谱', '完成第一次认谱练习')
+  }
+  if (session.sessionType === 'rhythm') {
+    unlockBadge('first-rhythm', '第一小节节奏', '完成第一次节奏练习')
   }
   if (streakDays >= 3) {
     unlockBadge('streak-3', '三天连练', '连续练习 3 天')

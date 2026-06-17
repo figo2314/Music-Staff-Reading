@@ -14,6 +14,7 @@ import {
   Settings,
   Sparkles,
   Star,
+  Timer,
   Trophy,
   Volume2,
   VolumeX,
@@ -21,14 +22,15 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { PianoKeyboard } from './components/PianoKeyboard'
+import { RhythmStaff } from './components/RhythmStaff'
 import { StaffCanvas } from './components/StaffCanvas'
 import { getLevel, getNoteDisplay, getNoteLabel, LEVELS, NOTES_BY_ID } from './data/notes'
+import { RHYTHM_ANSWER_OPTIONS, RHYTHM_PATTERNS, RHYTHM_PATTERNS_BY_ID } from './data/rhythms'
 import { playFeedbackTone, playPianoNote } from './lib/audio'
 import { launchCompletionConfetti } from './lib/celebration'
 import { formatShortDate, getLocalDateKey } from './lib/date'
 import {
   buildAnswerOptions,
-  chooseWeightedNote,
   finishPracticeSession,
   getAvailableNotes,
   getWeakNoteIds,
@@ -42,29 +44,64 @@ import type {
   NoteItem,
   PracticeMode,
   PracticeSummary,
+  RhythmPattern,
+  SessionType,
   UserSettings,
   ViewName,
 } from './types'
 
-interface QuestionState {
+interface NoteQuestionState {
+  kind: 'note'
   id: string
   note: NoteItem
   startedAt: number
   answerOptions: AnswerName[]
 }
 
+interface RhythmQuestionState {
+  kind: 'rhythm'
+  id: string
+  rhythm: RhythmPattern
+  startedAt: number
+  answerOptions: string[]
+}
+
+interface RhythmTapQuestionState {
+  kind: 'rhythmTap'
+  id: string
+  rhythm: RhythmPattern
+  startedAt: number
+  tapBeats: number[]
+}
+
+type QuestionState = NoteQuestionState | RhythmQuestionState | RhythmTapQuestionState
+
 interface PracticeState {
+  sessionType: SessionType
   mode: PracticeMode
   levelId: string
   total: number
   startedAt: number
   records: AnswerRecord[]
   question: QuestionState
+  questionDeck: string[]
+  currentIndex: number
   feedback: 'idle' | 'correct' | 'wrong'
   questionHadWrong: boolean
-  selectedAnswer?: AnswerName
+  selectedAnswer?: string
   selectedNoteId?: string
+  tapStartedAt?: number
+  tapTimes?: number[]
+  tapResult?: TapResult
   summary?: PracticeSummary
+}
+
+interface TapResult {
+  score: number
+  avgOffsetMs: number
+  maxOffsetMs: number
+  label: string
+  offsets: number[]
 }
 
 const navItems: Array<{ view: ViewName; label: string; icon: typeof Home }> = [
@@ -96,7 +133,9 @@ function App() {
 
   const todaySessions = useMemo(() => {
     const today = getLocalDateKey()
-    return state.sessions.filter((session) => getLocalDateKey(new Date(session.startedAt)) === today)
+    return state.sessions.filter(
+      (session) => (session.sessionType ?? 'note') === 'note' && getLocalDateKey(new Date(session.startedAt)) === today,
+    )
   }, [state.sessions])
   const todayAnswered = todaySessions.reduce((sum, session) => sum + session.questionCount, 0)
   const todayCorrect = todaySessions.reduce((sum, session) => sum + session.correctCount, 0)
@@ -115,14 +154,19 @@ function App() {
     clearAdvanceTimer()
     const includeAccidentals = state.settings.difficultyMode === 'chromatic'
     const notes = getAvailableNotes(levelId, mode === 'review', state.noteProgress, includeAccidentals)
-    const questionNote = chooseWeightedNote(notes, state.noteProgress)
+    const noteDeck = buildNoteDeck(notes, state.noteProgress, state.settings.dailyQuestionCount)
+    const questionNote = NOTES_BY_ID[noteDeck[0]]
     setPractice({
+      sessionType: 'note',
       mode,
       levelId,
-      total: state.settings.dailyQuestionCount,
+      total: noteDeck.length,
       startedAt: Date.now(),
       records: [],
+      questionDeck: noteDeck,
+      currentIndex: 0,
       question: {
+        kind: 'note',
         id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         note: questionNote,
         startedAt: Date.now(),
@@ -134,12 +178,71 @@ function App() {
     setView('practice')
   }
 
-  const answerQuestion = (answer: AnswerName, selectedNoteId?: string) => {
+  const startRhythmPractice = () => {
+    clearAdvanceTimer()
+    const rhythmDeck = buildRhythmDeck(state.settings.dailyQuestionCount)
+    const rhythm = RHYTHM_PATTERNS_BY_ID[rhythmDeck[0]]
+    setPractice({
+      sessionType: 'rhythm',
+      mode: 'daily',
+      levelId: 'rhythm-basic',
+      total: rhythmDeck.length,
+      startedAt: Date.now(),
+      records: [],
+      questionDeck: rhythmDeck,
+      currentIndex: 0,
+      question: {
+        kind: 'rhythm',
+        id: `r-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        rhythm,
+        startedAt: Date.now(),
+        answerOptions: buildRhythmAnswerOptions(rhythm.id),
+      },
+      feedback: 'idle',
+      questionHadWrong: false,
+    })
+    setView('practice')
+  }
+
+  const startRhythmTapPractice = () => {
+    clearAdvanceTimer()
+    const rhythmDeck = buildRhythmDeck(state.settings.dailyQuestionCount)
+    const rhythm = RHYTHM_PATTERNS_BY_ID[rhythmDeck[0]]
+    setPractice({
+      sessionType: 'rhythmTap',
+      mode: 'daily',
+      levelId: 'rhythm-tap-basic',
+      total: rhythmDeck.length,
+      startedAt: Date.now(),
+      records: [],
+      questionDeck: rhythmDeck,
+      currentIndex: 0,
+      question: {
+        kind: 'rhythmTap',
+        id: `t-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        rhythm,
+        startedAt: Date.now(),
+        tapBeats: getTapBeats(rhythm),
+      },
+      feedback: 'idle',
+      questionHadWrong: false,
+      tapTimes: [],
+    })
+    setView('practice')
+  }
+
+  const answerQuestion = (answer: string, selectedNoteId?: string) => {
     if (!practice || practice.feedback !== 'idle') {
       return
     }
 
-    const isCorrect = selectedNoteId ? selectedNoteId === practice.question.note.id : answer === practice.question.note.name
+    let isCorrect: boolean
+    if (practice.question.kind === 'note') {
+      isCorrect = selectedNoteId ? selectedNoteId === practice.question.note.id : answer === practice.question.note.name
+    } else {
+      isCorrect = answer === practice.question.rhythm.id
+    }
+
     if (state.settings.soundEnabled) {
       if (selectedNoteId) {
         playPianoNote(selectedNoteId)
@@ -177,17 +280,29 @@ function App() {
       return
     }
 
-    const record: AnswerRecord = {
-      questionId: practice.question.id,
-      noteId: practice.question.note.id,
-      selectedAnswer: answer,
-      selectedNoteId,
-      correctAnswer: practice.question.note.name,
-      correctNoteId: practice.question.note.id,
-      isCorrect: !practice.questionHadWrong,
-      responseTimeMs: Date.now() - practice.question.startedAt,
-      answeredAt: Date.now(),
-    }
+    const record: AnswerRecord =
+      practice.question.kind === 'note'
+        ? {
+            questionId: practice.question.id,
+            noteId: practice.question.note.id,
+            selectedAnswer: answer,
+            selectedNoteId,
+            correctAnswer: practice.question.note.name,
+            correctNoteId: practice.question.note.id,
+            isCorrect: !practice.questionHadWrong,
+            responseTimeMs: Date.now() - practice.question.startedAt,
+            answeredAt: Date.now(),
+          }
+        : {
+            questionId: practice.question.id,
+            noteId: practice.question.rhythm.id,
+            selectedAnswer: answer,
+            correctAnswer: practice.question.rhythm.id,
+            correctNoteId: practice.question.rhythm.id,
+            isCorrect: !practice.questionHadWrong,
+            responseTimeMs: Date.now() - practice.question.startedAt,
+            answeredAt: Date.now(),
+          }
     const records = [...practice.records, record]
 
     setPractice({
@@ -207,7 +322,7 @@ function App() {
         }
 
         if (records.length >= current.total) {
-          const result = finishPracticeSession(state, records, current.levelId, current.startedAt)
+          const result = finishPracticeSession(state, records, current.levelId, current.startedAt, current.sessionType)
           setState(result.state)
           if (state.settings.soundEnabled) {
             playFeedbackTone('complete')
@@ -221,20 +336,41 @@ function App() {
           }
         }
 
-        const simulatedProgress = resultlessProgressPreview(state, records)
+        if (current.sessionType === 'rhythm') {
+          const nextIndex = current.currentIndex + 1
+          const nextRhythm = RHYTHM_PATTERNS_BY_ID[current.questionDeck[nextIndex]]
+          return {
+            ...current,
+            records,
+            currentIndex: nextIndex,
+            selectedAnswer: undefined,
+            selectedNoteId: undefined,
+            feedback: 'idle',
+            questionHadWrong: false,
+            question: {
+              kind: 'rhythm',
+              id: `r-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              rhythm: nextRhythm,
+              startedAt: Date.now(),
+              answerOptions: buildRhythmAnswerOptions(nextRhythm.id),
+            },
+          }
+        }
+
         const includeAccidentals = state.settings.difficultyMode === 'chromatic'
-        const notes = getAvailableNotes(current.levelId, current.mode === 'review', simulatedProgress, includeAccidentals)
-        const recentNoteIds = records.map((item) => item.noteId)
-        const nextNote = chooseWeightedNote(notes, simulatedProgress, recentNoteIds)
+        const nextIndex = current.currentIndex + 1
+        const nextNote = NOTES_BY_ID[current.questionDeck[nextIndex]]
         return {
           ...current,
           records,
+          currentIndex: nextIndex,
           selectedAnswer: undefined,
           selectedNoteId: undefined,
           feedback: 'idle',
           questionHadWrong: false,
           question: {
             id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            kind: 'note',
             note: nextNote,
             startedAt: Date.now(),
             answerOptions: buildAnswerOptions(includeAccidentals),
@@ -242,6 +378,119 @@ function App() {
         }
       })
     }, state.settings.animationLevel === 'simple' ? 450 : 760)
+  }
+
+  const startTapQuestion = () => {
+    setPractice((current) => {
+      if (!current || current.question.kind !== 'rhythmTap' || current.feedback !== 'idle') {
+        return current
+      }
+
+      return {
+        ...current,
+        tapStartedAt: Date.now(),
+        tapTimes: [],
+        tapResult: undefined,
+      }
+    })
+  }
+
+  const tapRhythmBeat = () => {
+    setPractice((current) => {
+      if (!current || current.question.kind !== 'rhythmTap' || current.feedback !== 'idle' || !current.tapStartedAt) {
+        return current
+      }
+
+      const tapTimes = [...(current.tapTimes ?? []), Date.now()]
+      if (state.settings.soundEnabled) {
+        playFeedbackTone('correct')
+      }
+
+      return {
+        ...current,
+        tapTimes: tapTimes.slice(0, current.question.tapBeats.length),
+      }
+    })
+  }
+
+  const submitTapQuestion = () => {
+    if (!practice || practice.question.kind !== 'rhythmTap' || practice.feedback !== 'idle' || !practice.tapStartedAt) {
+      return
+    }
+
+    const tapTimes = practice.tapTimes ?? []
+    const tapResult = scoreTapRhythm(practice.question.tapBeats, practice.tapStartedAt, tapTimes)
+    const isCorrect = tapResult.score >= 70
+    if (state.settings.soundEnabled) {
+      playFeedbackTone(isCorrect ? 'correct' : 'wrong')
+    }
+
+    const record: AnswerRecord = {
+      questionId: practice.question.id,
+      noteId: practice.question.rhythm.id,
+      selectedAnswer: `${tapResult.score}`,
+      correctAnswer: practice.question.rhythm.id,
+      correctNoteId: practice.question.rhythm.id,
+      isCorrect,
+      responseTimeMs: Date.now() - practice.question.startedAt,
+      answeredAt: Date.now(),
+    }
+    const records = [...practice.records, record]
+
+    setPractice({
+      ...practice,
+      records,
+      feedback: isCorrect ? 'correct' : 'wrong',
+      questionHadWrong: !isCorrect,
+      tapResult,
+    })
+
+    const practiceStartedAt = practice.startedAt
+    advanceTimerRef.current = window.setTimeout(() => {
+      advanceTimerRef.current = null
+      setPractice((current) => {
+        if (!current || current.startedAt !== practiceStartedAt) {
+          return current
+        }
+
+        if (records.length >= current.total) {
+          const result = finishPracticeSession(state, records, current.levelId, current.startedAt, current.sessionType)
+          setState(result.state)
+          if (state.settings.soundEnabled) {
+            playFeedbackTone('complete')
+          }
+          launchCompletionConfetti(state.settings.animationLevel === 'simple')
+          return {
+            ...current,
+            records,
+            feedback: isCorrect ? 'correct' : 'wrong',
+            summary: result.summary,
+          }
+        }
+
+        const nextIndex = current.currentIndex + 1
+        const nextRhythm = RHYTHM_PATTERNS_BY_ID[current.questionDeck[nextIndex]]
+        return {
+          ...current,
+          records,
+          currentIndex: nextIndex,
+          feedback: 'idle',
+          questionHadWrong: false,
+          selectedAnswer: undefined,
+          selectedNoteId: undefined,
+          tapStartedAt: undefined,
+          tapTimes: [],
+          tapResult: undefined,
+          question: {
+            kind: 'rhythmTap',
+            id: `t-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            rhythm: nextRhythm,
+            startedAt: Date.now(),
+            tapBeats: getTapBeats(nextRhythm),
+          },
+        }
+      })
+    }, state.settings.animationLevel === 'simple' ? 850 : 1250)
   }
 
   const leavePractice = (nextView: ViewName) => {
@@ -283,6 +532,8 @@ function App() {
             weakCount={weakNoteIds.length}
             masteredCount={masteredCount}
             onStart={() => startPractice('daily')}
+            onStartRhythm={startRhythmPractice}
+            onStartRhythmTap={startRhythmTapPractice}
             onReview={() => startPractice('review')}
             onOpenHistory={() => setView('history')}
           />
@@ -294,7 +545,16 @@ function App() {
             labelMode={state.settings.noteLabelMode}
             answerMode={state.settings.answerMode}
             onAnswer={answerQuestion}
-            onRestart={() => startPractice(practice.mode, practice.levelId)}
+            onTapStart={startTapQuestion}
+            onTapBeat={tapRhythmBeat}
+            onTapSubmit={submitTapQuestion}
+            onRestart={() =>
+              practice.sessionType === 'rhythmTap'
+                ? startRhythmTapPractice()
+                : practice.sessionType === 'rhythm'
+                  ? startRhythmPractice()
+                  : startPractice(practice.mode, practice.levelId)
+            }
             onHome={() => leavePractice('home')}
             onHistory={() => leavePractice('history')}
           />
@@ -360,6 +620,8 @@ function HomeView({
   weakCount,
   masteredCount,
   onStart,
+  onStartRhythm,
+  onStartRhythmTap,
   onReview,
   onOpenHistory,
 }: {
@@ -372,6 +634,8 @@ function HomeView({
   weakCount: number
   masteredCount: number
   onStart: () => void
+  onStartRhythm: () => void
+  onStartRhythmTap: () => void
   onReview: () => void
   onOpenHistory: () => void
 }) {
@@ -416,6 +680,14 @@ function HomeView({
           <RotateCcw aria-hidden="true" size={19} />
           {weakCount > 0 ? `复习薄弱音（${weakCount}）` : '暂无薄弱音需要复习'}
         </button>
+        <button className="secondary-button rhythm-start-button" type="button" onClick={onStartRhythm}>
+          <BarChart3 aria-hidden="true" size={19} />
+          节奏型练习
+        </button>
+        <button className="secondary-button tap-start-button" type="button" onClick={onStartRhythmTap}>
+          <Timer aria-hidden="true" size={19} />
+          节奏跟拍
+        </button>
       </div>
 
       <div className="metric-grid">
@@ -441,6 +713,9 @@ function PracticeView({
   labelMode,
   answerMode,
   onAnswer,
+  onTapStart,
+  onTapBeat,
+  onTapSubmit,
   onRestart,
   onHome,
   onHistory,
@@ -448,16 +723,25 @@ function PracticeView({
   practice: PracticeState
   labelMode: AppState['settings']['noteLabelMode']
   answerMode: AppState['settings']['answerMode']
-  onAnswer: (answer: AnswerName, selectedNoteId?: string) => void
+  onAnswer: (answer: string, selectedNoteId?: string) => void
+  onTapStart: () => void
+  onTapBeat: () => void
+  onTapSubmit: () => void
   onRestart: () => void
   onHome: () => void
   onHistory: () => void
 }) {
-  const correctAnswer = practice.question.note.name
+  const rhythmQuestion = practice.question.kind === 'rhythm' ? practice.question : undefined
+  const rhythmTapQuestion = practice.question.kind === 'rhythmTap' ? practice.question : undefined
+  const noteQuestion = practice.question.kind === 'note' ? practice.question : undefined
+  const isRhythmPractice = Boolean(rhythmQuestion || rhythmTapQuestion)
+  const correctAnswer = rhythmQuestion?.rhythm.id ?? rhythmTapQuestion?.rhythm.id ?? noteQuestion?.note.name ?? ''
   const answeredCount = practice.records.length
   const progress = practice.summary ? 100 : Math.round((answeredCount / practice.total) * 100)
   const handlePianoClick = (noteId: string) => onAnswer(noteId.replace(/\d/g, '') as AnswerName, noteId)
   const combo = getTrailingCorrectStreak(practice.records)
+  const tapTargetCount = rhythmTapQuestion?.tapBeats.length ?? 0
+  const tapCount = practice.tapTimes?.length ?? 0
 
   if (practice.summary) {
     const session = practice.summary.session
@@ -471,8 +755,14 @@ function PracticeView({
           <Star fill="currentColor" />
         </div>
         <p className="celebration-title">太棒了！</p>
-        <h1>完成练习</h1>
-        <p className="muted">今天的小舞台已经点亮。</p>
+        <h1>{practice.sessionType === 'rhythmTap' ? '完成跟拍' : `完成${isRhythmPractice ? '节奏' : '练习'}`}</h1>
+        <p className="muted">
+          {practice.sessionType === 'rhythmTap'
+            ? '手感和节拍正在对齐。'
+            : isRhythmPractice
+              ? '节拍感又稳了一点。'
+              : '今天的小舞台已经点亮。'}
+        </p>
         <div className="finish-score">
           <span>{accuracy}%</span>
           <small>正确率</small>
@@ -523,7 +813,13 @@ function PracticeView({
       </div>
 
       <div className={`note-card ${practice.feedback}`}>
-        <StaffCanvas note={practice.question.note} feedback={practice.feedback} />
+        {rhythmQuestion ? (
+          <RhythmStaff pattern={rhythmQuestion.rhythm} feedback={practice.feedback} />
+        ) : rhythmTapQuestion ? (
+          <RhythmStaff pattern={rhythmTapQuestion.rhythm} feedback={practice.feedback} />
+        ) : noteQuestion ? (
+          <StaffCanvas note={noteQuestion.note} feedback={practice.feedback} />
+        ) : null}
         {practice.feedback === 'correct' && combo >= 2 && (
           <div
             key={`${practice.question.id}-${combo}`}
@@ -537,22 +833,84 @@ function PracticeView({
       </div>
 
       <div className="feedback-zone">
-        {practice.feedback === 'idle' && <span>这个音是什么？</span>}
+        {practice.feedback === 'idle' && (
+          <span>
+            {rhythmTapQuestion
+              ? practice.tapStartedAt
+                ? `按谱面点拍：${tapCount}/${tapTargetCount}`
+                : '先看节奏，准备好就开始跟拍'
+              : isRhythmPractice
+                ? '这一小节是哪种节奏？'
+                : '这个音是什么？'}
+          </span>
+        )}
         {practice.feedback === 'correct' && (
           <span className="correct-text">
-            <Check size={18} /> 答对了，{getNoteDisplay(practice.question.note, labelMode)}
+            <Check size={18} /> 答对了，
+            {rhythmTapQuestion
+              ? practice.tapResult?.label
+              : isRhythmPractice
+                ? RHYTHM_PATTERNS_BY_ID[correctAnswer]?.countText
+                : noteQuestion
+                  ? getNoteDisplay(noteQuestion.note, labelMode)
+                : ''}
           </span>
         )}
         {practice.feedback === 'wrong' && (
           <span className="wrong-text">
-            <Sparkles size={18} /> 呀，其实是 {getNoteLabel(correctAnswer, labelMode)}，再试一次！
+            <Sparkles size={18} /> 呀，其实是{' '}
+            {rhythmTapQuestion
+              ? practice.tapResult?.label
+              : isRhythmPractice
+                ? RHYTHM_PATTERNS_BY_ID[correctAnswer]?.title
+                : getNoteLabel(correctAnswer as AnswerName, labelMode)}
+            ，再试一次！
           </span>
         )}
       </div>
 
-      {answerMode === 'text' ? (
+      {rhythmTapQuestion ? (
+        <RhythmTapControls
+          disabled={practice.feedback !== 'idle'}
+          hasStarted={Boolean(practice.tapStartedAt)}
+          tapCount={tapCount}
+          targetCount={tapTargetCount}
+          result={practice.tapResult}
+          onStart={onTapStart}
+          onTap={onTapBeat}
+          onSubmit={onTapSubmit}
+        />
+      ) : practice.question.kind === 'rhythm' ? (
+        <div className="rhythm-answer-grid">
+          {practice.question.answerOptions.map((patternId) => {
+            const option = RHYTHM_PATTERNS_BY_ID[patternId]
+            const isSelected = practice.selectedAnswer === patternId
+            const isCorrect = practice.feedback !== 'idle' && patternId === correctAnswer
+            const isWrongSelected = practice.feedback === 'wrong' && isSelected
+            return (
+              <button
+                key={patternId}
+                type="button"
+                className={[
+                  'rhythm-answer-button',
+                  isCorrect ? 'correct' : '',
+                  isWrongSelected ? 'wrong' : '',
+                  isSelected ? 'selected' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                onClick={() => onAnswer(patternId)}
+                disabled={practice.feedback !== 'idle'}
+              >
+                <strong>{option.title}</strong>
+                <span>{option.countText}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : noteQuestion && answerMode === 'text' ? (
         <div className="answer-grid">
-          {practice.question.answerOptions.map((answer) => {
+          {noteQuestion.answerOptions.map((answer) => {
             const isSelected = practice.selectedAnswer === answer
             const isCorrect = practice.feedback !== 'idle' && answer === correctAnswer
             const isWrongSelected = practice.feedback === 'wrong' && isSelected
@@ -577,14 +935,16 @@ function PracticeView({
           })}
         </div>
       ) : (
-        <PianoKeyboard
-          disabled={practice.feedback !== 'idle'}
-          feedback={practice.feedback}
-          labelMode={labelMode}
-          selectedNoteId={practice.selectedNoteId}
-          correctNoteId={practice.question.note.id}
-          onPianoClick={handlePianoClick}
-        />
+        noteQuestion && (
+          <PianoKeyboard
+            disabled={practice.feedback !== 'idle'}
+            feedback={practice.feedback}
+            labelMode={labelMode}
+            selectedNoteId={practice.selectedNoteId}
+            correctNoteId={noteQuestion.note.id}
+            onPianoClick={handlePianoClick}
+          />
+        )
       )}
     </section>
   )
@@ -622,6 +982,67 @@ function LevelsView({
         })}
       </div>
     </section>
+  )
+}
+
+function RhythmTapControls({
+  disabled,
+  hasStarted,
+  tapCount,
+  targetCount,
+  result,
+  onStart,
+  onTap,
+  onSubmit,
+}: {
+  disabled: boolean
+  hasStarted: boolean
+  tapCount: number
+  targetCount: number
+  result?: TapResult
+  onStart: () => void
+  onTap: () => void
+  onSubmit: () => void
+}) {
+  const canSubmit = hasStarted && tapCount >= targetCount && !disabled
+
+  return (
+    <div className="tap-panel">
+      <div className="tap-meter">
+        {Array.from({ length: targetCount }, (_, index) => (
+          <span key={index} className={index < tapCount ? 'filled' : ''} />
+        ))}
+      </div>
+      {!hasStarted ? (
+        <button className="primary-button" type="button" onClick={onStart} disabled={disabled}>
+          <Timer aria-hidden="true" size={20} />
+          开始跟拍
+        </button>
+      ) : (
+        <>
+          <button
+            className="tap-button"
+            type="button"
+            onClick={onTap}
+            disabled={disabled || tapCount >= targetCount}
+            aria-label="点拍"
+          >
+            点
+          </button>
+          <button className="secondary-button" type="button" onClick={onSubmit} disabled={!canSubmit}>
+            完成这一小节
+          </button>
+        </>
+      )}
+      {result && (
+        <div className="tap-result">
+          <strong>{result.score} 分</strong>
+          <span>
+            平均偏差 {result.avgOffsetMs}ms，最大偏差 {result.maxOffsetMs}ms
+          </span>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -691,7 +1112,7 @@ function HistoryView({ state }: { state: AppState }) {
               <div className="session-row" key={session.id}>
                 <div>
                   <strong>{formatShortDate(session.startedAt)}</strong>
-                  <span>{getLevel(session.levelId).title}</span>
+                  <span>{getSessionTitle(session.sessionType, session.levelId)}</span>
                 </div>
                 <div className="session-stat">
                   <span>{accuracy}%</span>
@@ -907,22 +1328,103 @@ function EmptyState({ text }: { text: string }) {
   return <div className="empty-state">{text}</div>
 }
 
-function resultlessProgressPreview(state: AppState, records: AnswerRecord[]) {
-  const preview = { ...state.noteProgress }
-  for (const record of records) {
-    const existing = preview[record.noteId]
-    if (!existing) {
-      continue
-    }
-    preview[record.noteId] = {
-      ...existing,
-      wrongStreak: record.isCorrect ? 0 : existing.wrongStreak + 1,
-      currentStreak: record.isCorrect ? existing.currentStreak + 1 : 0,
-      recentResults: [...existing.recentResults, record.isCorrect].slice(-12),
-      recentResponseTimesMs: [...existing.recentResponseTimesMs, record.responseTimeMs].slice(-12),
-    }
+function buildNoteDeck(
+  notes: NoteItem[],
+  progress: AppState['noteProgress'],
+  requestedCount: number,
+): string[] {
+  const weightedNoteIds = notes
+    .map((note) => ({
+      noteId: note.id,
+      priority: getNoteDeckPriority(note, progress),
+    }))
+    .sort((a, b) => b.priority - a.priority)
+    .map((item) => item.noteId)
+
+  return weightedNoteIds.slice(0, Math.min(requestedCount, weightedNoteIds.length))
+}
+
+function getNoteDeckPriority(note: NoteItem, progress: AppState['noteProgress']): number {
+  const noteProgress = progress[note.id]
+  const base = noteProgress ? 1 + noteProgress.wrongStreak * 4 + noteProgress.wrongAttempts * 0.35 : 8
+  const freshness = Math.random()
+  const slowBonus = noteProgress?.recentResponseTimesMs.slice(-4).some((time) => time > 5500) ? 2 : 0
+  const masteredPenalty = noteProgress?.mastered ? 4 : 0
+  return base + slowBonus + freshness - masteredPenalty
+}
+
+function buildRhythmDeck(requestedCount: number): string[] {
+  const shuffled = shuffleLocal(RHYTHM_PATTERNS.map((pattern) => pattern.id))
+  return shuffled.slice(0, Math.min(requestedCount, shuffled.length))
+}
+
+function buildRhythmAnswerOptions(correctPatternId: string): string[] {
+  const distractors = RHYTHM_ANSWER_OPTIONS.map((option) => option.id).filter((patternId) => patternId !== correctPatternId)
+  const shuffledDistractors = shuffleLocal(distractors).slice(0, 3)
+  return shuffleLocal([correctPatternId, ...shuffledDistractors])
+}
+
+function getSessionTitle(sessionType: SessionType | undefined, levelId: string): string {
+  if (sessionType === 'rhythmTap') {
+    return '节奏跟拍'
   }
-  return preview
+  return sessionType === 'rhythm' ? '节奏型练习' : getLevel(levelId).title
+}
+
+function getTapBeats(pattern: RhythmPattern): number[] {
+  const beats: number[] = []
+  let cursor = 0
+
+  for (const symbol of pattern.symbols) {
+    if (!symbol.value.includes('Rest')) {
+      beats.push(cursor)
+    }
+    cursor += symbol.beats
+  }
+
+  return beats
+}
+
+function scoreTapRhythm(tapBeats: number[], startedAt: number, tapTimes: number[]): TapResult {
+  const beatMs = 667
+  const offsets = tapBeats.map((beat, index) => Math.round((tapTimes[index] ?? Date.now()) - (startedAt + beat * beatMs)))
+  const absoluteOffsets = offsets.map((offset) => Math.abs(offset))
+  const avgOffsetMs = absoluteOffsets.length
+    ? Math.round(absoluteOffsets.reduce((sum, offset) => sum + offset, 0) / absoluteOffsets.length)
+    : 999
+  const maxOffsetMs = absoluteOffsets.length ? Math.max(...absoluteOffsets) : 999
+  const score = Math.max(0, Math.round(100 - avgOffsetMs / 4 - Math.max(0, maxOffsetMs - 220) / 8))
+
+  return {
+    score,
+    avgOffsetMs,
+    maxOffsetMs,
+    offsets,
+    label: score >= 88 ? '很稳' : score >= 70 ? '基本稳住' : getTapHint(offsets),
+  }
+}
+
+function getTapHint(offsets: number[]): string {
+  if (offsets.length === 0) {
+    return '还没有点拍'
+  }
+  const avg = offsets.reduce((sum, offset) => sum + offset, 0) / offsets.length
+  if (avg < -120) {
+    return '整体偏早'
+  }
+  if (avg > 120) {
+    return '整体偏晚'
+  }
+  return '节拍有点散'
+}
+
+function shuffleLocal<T>(items: readonly T[]): T[] {
+  const shuffled = [...items]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1))
+    ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+  }
+  return shuffled
 }
 
 function getBestCorrectStreak(records: AnswerRecord[]): number {

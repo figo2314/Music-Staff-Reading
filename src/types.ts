@@ -18,6 +18,10 @@ export type ViewName = 'home' | 'practice' | 'levels' | 'rewards' | 'history' | 
 
 export type PracticeMode = 'daily' | 'review' | 'level'
 
+export type SessionType = 'note' | 'rhythm' | 'rhythmTap'
+
+export type RhythmValue = 'quarter' | 'half' | 'whole' | 'eighth' | 'quarterRest' | 'halfRest'
+
 export interface NoteItem {
   id: string
   clef: Clef
@@ -37,6 +41,20 @@ export interface LevelConfig {
   accent: string
 }
 
+export interface RhythmSymbol {
+  value: RhythmValue
+  beats: number
+}
+
+export interface RhythmPattern {
+  id: string
+  title: string
+  subtitle: string
+  countText: string
+  symbols: RhythmSymbol[]
+  accent: string
+}
+
 export interface UserSettings {
   dailyQuestionCount: 5 | 10 | 15 | 20
   noteLabelMode: NoteLabelMode
@@ -50,9 +68,9 @@ export interface UserSettings {
 export interface AnswerRecord {
   questionId: string
   noteId: string
-  selectedAnswer: AnswerName
+  selectedAnswer: string
   selectedNoteId?: string
-  correctAnswer: AnswerName
+  correctAnswer: string
   correctNoteId?: string
   isCorrect: boolean
   responseTimeMs: number
@@ -75,6 +93,7 @@ export interface NoteProgress {
 
 export interface PracticeSession {
   id: string
+  sessionType?: SessionType
   startedAt: number
   endedAt: number
   levelId: string
