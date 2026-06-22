@@ -569,6 +569,18 @@ h2 {
   gap: 6px;
 }
 
+.prompt-stack {
+  display: grid;
+  place-items: center;
+  gap: 3px;
+}
+
+.prompt-stack small {
+  color: #7a8a91;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
 .correct-text {
   color: #138f63;
 }
@@ -778,6 +790,15 @@ h2 {
 
 .piano-register-hint span {
   font-weight: 900;
+}
+
+.piano-register-hint.reduced {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.piano-register-hint.reduced span {
+  color: #667882;
 }
 
 .piano-keyboard {

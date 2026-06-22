@@ -15,6 +15,7 @@ interface PianoKeyboardProps {
   selectedNoteId?: string
   correctAnswer: AnswerName
   registerLabel: string
+  hintLevel: 'full' | 'reduced'
   onPianoClick: (note: string) => void
 }
 
@@ -43,13 +44,14 @@ export function PianoKeyboard({
   selectedNoteId,
   correctAnswer,
   registerLabel,
+  hintLevel,
   onPianoClick,
 }: PianoKeyboardProps) {
   return (
     <div className="piano-wrap">
-      <div className="piano-register-hint">
+      <div className={`piano-register-hint ${hintLevel === 'reduced' ? 'reduced' : ''}`}>
         <strong>当前音区</strong>
-        <span>{registerLabel}</span>
+        <span>{hintLevel === 'reduced' ? '提示减弱：先看谱面' : registerLabel}</span>
       </div>
       <div className="piano-keyboard" aria-label="虚拟钢琴键盘">
         <div className="piano-white-keys">

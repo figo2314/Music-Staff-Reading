@@ -130,6 +130,7 @@ interface PracticeDiagnosis {
 
 interface PracticeReport {
   weakText: string
+  quickText: string
   slowText: string
   nextText: string
 }
@@ -803,6 +804,7 @@ function App() {
             practice={practice}
             labelMode={state.settings.noteLabelMode}
             answerMode={state.settings.answerMode}
+            noteProgress={state.noteProgress}
             onAnswer={answerQuestion}
             onMelodyAnswer={answerMelodyStep}
             onTapStart={startTapQuestion}
@@ -1011,6 +1013,7 @@ function PracticeView({
   practice,
   labelMode,
   answerMode,
+  noteProgress,
   onAnswer,
   onMelodyAnswer,
   onTapStart,
@@ -1023,6 +1026,7 @@ function PracticeView({
   practice: PracticeState
   labelMode: AppState['settings']['noteLabelMode']
   answerMode: AppState['settings']['answerMode']
+  noteProgress: AppState['noteProgress']
   onAnswer: (answer: string, selectedNoteId?: string) => void
   onMelodyAnswer: (selectedNoteId: string) => void
   onTapStart: () => void
@@ -1050,6 +1054,10 @@ function PracticeView({
   const tapTargetCount = rhythmTapQuestion?.tapBeats.length ?? 0
   const tapCount = practice.tapTimes?.length ?? 0
   const prepBeat = getPrepBeat(practice.tapPrepStartedAt, practice.tapStartedAt)
+  const noteHintLevel = noteQuestion ? getHintLevel(noteQuestion.note, noteProgress) : 'full'
+  const melodyHintLevel = melodyQuestion
+    ? getHintLevel(melodyQuestion.notes[melodyQuestion.currentStep], noteProgress)
+    : 'full'
 
   if (practice.summary) {
     const session = practice.summary.session
@@ -1095,6 +1103,10 @@ function PracticeView({
           <div>
             <strong>易错点</strong>
             <span>{report.weakText}</span>
+          </div>
+          <div>
+            <strong>快速掌握</strong>
+            <span>{report.quickText}</span>
           </div>
           <div>
             <strong>反应速度</strong>
@@ -1170,21 +1182,24 @@ function PracticeView({
 
       <div className="feedback-zone">
         {practice.feedback === 'idle' && (
-          <span>
-            {rhythmTapQuestion
-              ? practice.tapStartedAt
-                ? prepBeat
-                  ? `预备拍 ${prepBeat}`
-                  : `按谱面点拍：${tapCount}/${tapTargetCount}`
-                : '先看节奏，准备好就开始跟拍'
-              : melodyQuestion
-                ? `${getMelodyDirectionLabel(melodyQuestion.notes)} · 第 ${melodyQuestion.currentStep + 1}/${melodyQuestion.notes.length} 个音`
-              : isRhythmPractice
-                ? '这一小节是哪种节奏？'
-                : noteQuestion?.isContrast
-                  ? '对比一下：这次看清楚音的位置'
-                  : '这个音是什么？'}
-          </span>
+          <div className="prompt-stack">
+            <span>
+              {rhythmTapQuestion
+                ? practice.tapStartedAt
+                  ? prepBeat
+                    ? `预备拍 ${prepBeat}`
+                    : `按谱面点拍：${tapCount}/${tapTargetCount}`
+                  : '先看节奏，准备好就开始跟拍'
+                : melodyQuestion
+                  ? `${getMelodyDirectionLabel(melodyQuestion.notes)} · 第 ${melodyQuestion.currentStep + 1}/${melodyQuestion.notes.length} 个音`
+                : isRhythmPractice
+                  ? '这一小节是哪种节奏？'
+                  : noteQuestion?.isContrast
+                    ? '对比一下：这次看清楚音的位置'
+                    : '这个音是什么？'}
+            </span>
+            {(noteQuestion || melodyQuestion) && <small>速度目标：5 秒内稳定答对</small>}
+          </div>
         )}
         {practice.feedback === 'correct' && (
           <span className="correct-text">
@@ -1269,6 +1284,7 @@ function PracticeView({
           selectedNoteId={practice.selectedNoteId}
           correctAnswer={melodyQuestion.notes[melodyQuestion.currentStep].name}
           registerLabel={getRegisterLabel(melodyQuestion.notes[melodyQuestion.currentStep])}
+          hintLevel={melodyHintLevel}
           onPianoClick={onMelodyAnswer}
         />
       ) : noteQuestion && answerMode === 'text' ? (
@@ -1306,6 +1322,7 @@ function PracticeView({
             selectedNoteId={practice.selectedNoteId}
             correctAnswer={noteQuestion.note.name}
             registerLabel={getRegisterLabel(noteQuestion.note)}
+            hintLevel={noteHintLevel}
             onPianoClick={handlePianoClick}
           />
         )
@@ -1912,6 +1929,17 @@ function getRegisterLabel(note: NoteItem): string {
   return `${register} · ${pitchId}`
 }
 
+function getHintLevel(note: NoteItem, progress: AppState['noteProgress']): 'full' | 'reduced' {
+  const item = progress[note.id]
+  if (!item || item.totalAttempts < 6 || item.wrongStreak > 0) {
+    return 'full'
+  }
+  const recent = item.recentResults.slice(-6)
+  const recentAccuracy = recent.length ? recent.filter(Boolean).length / recent.length : 0
+  const recentSlow = item.recentResponseTimesMs.slice(-4).some((time) => time > 5500)
+  return item.mastered || (recent.length >= 4 && recentAccuracy >= 0.85 && !recentSlow) ? 'reduced' : 'full'
+}
+
 function buildRhythmDeck(requestedCount: number): string[] {
   const shuffled = shuffleLocal(RHYTHM_PATTERNS.map((pattern) => pattern.id))
   return shuffled.slice(0, Math.min(requestedCount, shuffled.length))
@@ -2008,8 +2036,16 @@ function getSessionTitle(sessionType: SessionType | undefined, levelId: string):
 function getPracticeReport(records: AnswerRecord[]): PracticeReport {
   const noteRecords = records.filter((record) => NOTES_BY_ID[record.noteId])
   const wrongNoteIds = noteRecords.filter((record) => !record.isCorrect).map((record) => record.noteId)
+  const quickRecords = noteRecords.filter((record) => record.isCorrect && record.responseTimeMs <= 3000)
   const slowRecords = noteRecords.filter((record) => record.responseTimeMs > 5500)
   const weakText = getTopNoteText(wrongNoteIds, '本轮没有明显易错音')
+  const quickText =
+    quickRecords.length > 0
+      ? `${getTopNoteText(
+          quickRecords.map((record) => record.noteId),
+          '',
+        )} 已经比较熟。`
+      : '还没有特别快的音，先把准确率稳定下来。'
   const slowText =
     slowRecords.length > 0
       ? `${getTopNoteText(
@@ -2021,6 +2057,7 @@ function getPracticeReport(records: AnswerRecord[]): PracticeReport {
 
   return {
     weakText,
+    quickText,
     slowText,
     nextText,
   }
