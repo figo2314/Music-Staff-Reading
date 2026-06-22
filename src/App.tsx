@@ -149,7 +149,7 @@ const MELODY_ID_SEPARATOR = '|'
 const SMART_DECK_SEPARATOR = ':'
 
 type SmartDeckKind = 'note' | 'rhythm' | 'melody'
-type SmartStage = 'warmup' | 'weak' | 'rhythm' | 'melody' | 'challenge'
+type SmartStage = 'warmup' | 'review' | 'weak' | 'rhythm' | 'melody' | 'challenge'
 
 const navItems: Array<{ view: ViewName; label: string; icon: typeof Home }> = [
   { view: 'home', label: '练习', icon: Home },
@@ -1814,33 +1814,63 @@ function buildSmartDeck(
 ): string[] {
   const total = Math.max(5, requestedCount)
   const weakNotes = notes.filter((note) => isWeakNote(progress[note.id]))
+  const reviewNotes = notes.filter((note) => isDueForReview(note, progress))
   const warmupCount = Math.max(1, Math.round(total * 0.2))
+  const reviewCount = reviewNotes.length > 0 ? Math.max(1, Math.round(total * 0.2)) : 0
   const weakCount = weakNotes.length > 0 ? Math.max(1, Math.round(total * 0.25)) : 0
   const rhythmCount = Math.max(1, Math.round(total * 0.15))
   const melodyCount = Math.max(1, Math.round(total * 0.2))
-  const challengeCount = Math.max(1, total - warmupCount - weakCount - rhythmCount - melodyCount)
+  const challengeCount = Math.max(1, total - warmupCount - reviewCount - weakCount - rhythmCount - melodyCount)
 
-  const noteDeck = buildNoteDeck(notes, progress, warmupCount + challengeCount + weakCount)
+  const noteDeck = buildNoteDeck(notes, progress, warmupCount + challengeCount + weakCount + reviewCount)
+  const reviewDeck = reviewNotes.length > 0 ? buildReviewDeck(reviewNotes, progress, reviewCount) : []
   const weakDeck = weakNotes.length > 0 ? buildNoteDeck(weakNotes, progress, weakCount) : []
   const rhythmDeck = buildRhythmDeck(rhythmCount)
   const melodyDeck = buildMelodyDeck(notes, melodyCount)
   const warmupDeck = noteDeck.slice(0, warmupCount)
   const challengeDeck = noteDeck.slice(warmupCount, warmupCount + challengeCount)
-  const smartItems = [
-    ...warmupDeck.map((noteId) => createSmartDeckItem('warmup', 'note', noteId)),
-    ...weakDeck.map((noteId) => createSmartDeckItem('weak', 'note', noteId)),
-    ...rhythmDeck.map((rhythmId) => createSmartDeckItem('rhythm', 'rhythm', rhythmId)),
-    ...melodyDeck.map((melodyId) => createSmartDeckItem('melody', 'melody', melodyId)),
-    ...challengeDeck.map((noteId) => createSmartDeckItem('challenge', 'note', noteId)),
-  ]
+  const smartItems: string[] = []
+  const usedQuestionKeys = new Set<string>()
+  const addSmartItems = (stage: SmartStage, kind: SmartDeckKind, ids: string[]) => {
+    for (const id of ids) {
+      const questionKey = `${kind}${SMART_DECK_SEPARATOR}${id}`
+      if (usedQuestionKeys.has(questionKey)) {
+        continue
+      }
+      usedQuestionKeys.add(questionKey)
+      smartItems.push(createSmartDeckItem(stage, kind, id))
+    }
+  }
 
-  const uniqueItems = Array.from(new Set(smartItems))
-  if (uniqueItems.length >= total) {
-    return uniqueItems.slice(0, total)
+  addSmartItems('warmup', 'note', warmupDeck)
+  addSmartItems('review', 'note', reviewDeck)
+  addSmartItems('weak', 'note', weakDeck)
+  addSmartItems('rhythm', 'rhythm', rhythmDeck)
+  addSmartItems('melody', 'melody', melodyDeck)
+  addSmartItems('challenge', 'note', challengeDeck)
+
+  if (smartItems.length >= total) {
+    return smartItems.slice(0, total)
   }
 
   const fallbackDeck = buildNoteDeck(notes, progress, total).map((noteId) => createSmartDeckItem('challenge', 'note', noteId))
-  return Array.from(new Set([...uniqueItems, ...fallbackDeck])).slice(0, total)
+  addSmartItems(
+    'challenge',
+    'note',
+    fallbackDeck.map((item) => parseSmartDeckItem(item).id),
+  )
+  return smartItems.slice(0, total)
+}
+
+function buildReviewDeck(notes: NoteItem[], progress: AppState['noteProgress'], requestedCount: number): string[] {
+  return notes
+    .map((note) => ({
+      noteId: note.id,
+      priority: getReviewPriority(note, progress),
+    }))
+    .sort((a, b) => b.priority - a.priority)
+    .map((item) => item.noteId)
+    .slice(0, Math.min(requestedCount, notes.length))
 }
 
 function createSmartDeckItem(stage: SmartStage, kind: SmartDeckKind, id: string): string {
@@ -1880,6 +1910,7 @@ function getSmartStage(deckItem: string): SmartStage | undefined {
 function getStageLabel(stage: SmartStage): string {
   const labels: Record<SmartStage, string> = {
     warmup: '热身',
+    review: '复习',
     weak: '薄弱音',
     rhythm: '节奏',
     melody: '小旋律',
@@ -1930,8 +1961,47 @@ function getNoteDeckPriority(note: NoteItem, progress: AppState['noteProgress'])
   return base + slowBonus + freshness - masteredPenalty
 }
 
+function isDueForReview(note: NoteItem, progress: AppState['noteProgress']): boolean {
+  const noteProgress = progress[note.id]
+  if (!noteProgress || noteProgress.totalAttempts < 3 || !noteProgress.lastPracticedAt) {
+    return false
+  }
+
+  const daysSincePractice = getDaysSincePractice(noteProgress.lastPracticedAt)
+  const recentSlow = noteProgress.recentResponseTimesMs.slice(-5).some((time) => time > 5000)
+  const recentMiss = noteProgress.recentResults.slice(-6).some((result) => !result)
+  const reviewGap = noteProgress.mastered ? 4 : 2
+
+  return daysSincePractice >= reviewGap || (daysSincePractice >= 1 && (recentSlow || recentMiss))
+}
+
+function getReviewPriority(note: NoteItem, progress: AppState['noteProgress']): number {
+  const noteProgress = progress[note.id]
+  if (!noteProgress?.lastPracticedAt) {
+    return 0
+  }
+
+  const daysSincePractice = getDaysSincePractice(noteProgress.lastPracticedAt)
+  const slowCount = noteProgress.recentResponseTimesMs.slice(-5).filter((time) => time > 5000).length
+  const missCount = noteProgress.recentResults.slice(-8).filter((result) => !result).length
+  const masteredBonus = noteProgress.mastered ? 1.5 : 0
+
+  return daysSincePractice * 1.4 + slowCount * 2 + missCount * 1.6 + masteredBonus + Math.random()
+}
+
+function getDaysSincePractice(timestamp: number): number {
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 86400000))
+}
+
 function getPracticeDiagnosis(progress: AppState['noteProgress'], weakNoteIds: string[]): PracticeDiagnosis {
   if (weakNoteIds.length === 0) {
+    const dueReviewCount = Object.values(NOTES_BY_ID).filter((note) => isDueForReview(note, progress)).length
+    if (dueReviewCount > 0) {
+      return {
+        title: '复习到期提醒',
+        detail: `有 ${dueReviewCount} 个学过的音该回来看一眼，今日练习会先安排复习。`,
+      }
+    }
     return {
       title: '今日智能练习',
       detail: '会自动混合认音、节奏和小旋律，保持入口简单。',
