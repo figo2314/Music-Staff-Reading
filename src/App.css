@@ -1178,18 +1178,23 @@ h2 {
 }
 
 .session-row {
-  min-height: 68px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(85, 118, 130, 0.12);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
 }
 
-.session-row div {
+.session-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+}
+
+.session-main,
+.session-stat {
   display: grid;
   gap: 2px;
 }
@@ -1206,6 +1211,41 @@ h2 {
 .session-stat span {
   color: #168779;
   font-weight: 950;
+}
+
+.session-report-mini {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.session-report-mini span {
+  min-height: 34px;
+  border-radius: 8px;
+  background: rgba(246, 178, 59, 0.1);
+  color: #4f626b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.session-report-mini strong {
+  color: #bd4c42;
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+}
+
+.session-report-empty {
+  border-radius: 8px;
+  background: rgba(85, 118, 130, 0.08);
+  color: #667882;
+  padding: 8px 10px;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .note-chip-list {
@@ -1512,6 +1552,10 @@ h2 {
   }
 
   .mode-row-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .session-report-mini {
     grid-template-columns: 1fr;
   }
 

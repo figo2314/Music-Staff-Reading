@@ -1063,9 +1063,10 @@ function PracticeView({
 
   if (practice.summary) {
     const session = practice.summary.session
+    const records = session.records ?? []
     const accuracy = session.questionCount ? Math.round((session.correctCount / session.questionCount) * 100) : 0
-    const bestStreak = getBestCorrectStreak(session.records)
-    const report = getPracticeReport(session.records)
+    const bestStreak = getBestCorrectStreak(records)
+    const report = getPracticeReport(records)
     return (
       <section className="screen finish-screen">
         <div className="finish-burst" aria-hidden="true">
@@ -1515,16 +1516,42 @@ function HistoryView({ state }: { state: AppState }) {
         {sessions.length > 0 ? (
           sessions.map((session) => {
             const accuracy = session.questionCount ? Math.round((session.correctCount / session.questionCount) * 100) : 0
+            const records = session.records ?? []
+            const report = getPracticeReport(records)
             return (
               <div className="session-row" key={session.id}>
-                <div>
-                  <strong>{formatShortDate(session.startedAt)}</strong>
-                  <span>{getSessionTitle(session.sessionType, session.levelId)}</span>
+                <div className="session-summary">
+                  <div className="session-main">
+                    <strong>{formatShortDate(session.startedAt)}</strong>
+                    <span>{getSessionTitle(session.sessionType, session.levelId)}</span>
+                  </div>
+                  <div className="session-stat">
+                    <span>{accuracy}%</span>
+                    <small>{(session.avgResponseTimeMs / 1000).toFixed(1)}s</small>
+                  </div>
                 </div>
-                <div className="session-stat">
-                  <span>{accuracy}%</span>
-                  <small>{(session.avgResponseTimeMs / 1000).toFixed(1)}s</small>
-                </div>
+                {records.length > 0 ? (
+                  <div className="session-report-mini" aria-label="本轮练习报告">
+                    <span>
+                      <strong>易错</strong>
+                      {report.weakText}
+                    </span>
+                    <span>
+                      <strong>熟练</strong>
+                      {report.quickText}
+                    </span>
+                    <span>
+                      <strong>速度</strong>
+                      {report.slowText}
+                    </span>
+                    <span>
+                      <strong>建议</strong>
+                      {report.nextText}
+                    </span>
+                  </div>
+                ) : (
+                  <small className="session-report-empty">旧记录没有答题明细，新的练习会自动生成报告。</small>
+                )}
               </div>
             )
           })
@@ -2067,7 +2094,7 @@ function getSessionTitle(sessionType: SessionType | undefined, levelId: string):
   return sessionType === 'rhythm' ? '节奏型练习' : getLevel(levelId).title
 }
 
-function getPracticeReport(records: AnswerRecord[]): PracticeReport {
+function getPracticeReport(records: AnswerRecord[] = []): PracticeReport {
   const noteRecords = records.filter((record) => NOTES_BY_ID[record.noteId])
   const wrongNoteIds = noteRecords.filter((record) => !record.isCorrect).map((record) => record.noteId)
   const quickRecords = noteRecords.filter((record) => record.isCorrect && record.responseTimeMs <= 3000)
