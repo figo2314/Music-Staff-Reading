@@ -349,10 +349,10 @@ function App() {
     }
 
     let isCorrect: boolean
+    let playedNoteId: string | undefined
     if (practice.question.kind === 'note') {
-      isCorrect = selectedNoteId
-        ? selectedNoteId === getPlayableNoteId(practice.question.note)
-        : answer === practice.question.note.name
+      isCorrect = answer === practice.question.note.name
+      playedNoteId = getPlayableNoteId(practice.question.note)
     } else if (practice.question.kind === 'rhythm' || practice.question.kind === 'rhythmTap') {
       isCorrect = answer === practice.question.rhythm.id
     } else {
@@ -360,8 +360,8 @@ function App() {
     }
 
     if (state.settings.soundEnabled) {
-      if (selectedNoteId) {
-        playPianoNote(selectedNoteId)
+      if (selectedNoteId && playedNoteId) {
+        playPianoNote(playedNoteId)
       }
       if (!isCorrect) {
         playFeedbackTone('wrong')
@@ -473,7 +473,7 @@ function App() {
     }, state.settings.animationLevel === 'simple' ? 450 : 760)
   }
 
-  const answerMelodyStep = (selectedNoteId: string) => {
+  const answerMelodyStep = (selectedAnswer: string) => {
     if (!practice || practice.question.kind !== 'melody' || practice.feedback !== 'idle') {
       return
     }
@@ -481,10 +481,10 @@ function App() {
     const question = practice.question
     const currentNote = question.notes[question.currentStep]
     const correctNoteId = getPlayableNoteId(currentNote)
-    const isCorrect = selectedNoteId === correctNoteId
+    const isCorrect = selectedAnswer === currentNote.name
 
     if (state.settings.soundEnabled) {
-      playPianoNote(selectedNoteId)
+      playPianoNote(correctNoteId)
       if (!isCorrect) {
         playFeedbackTone('wrong')
       }
@@ -495,8 +495,8 @@ function App() {
         ...practice,
         feedback: 'wrong',
         questionHadWrong: true,
-        selectedAnswer: selectedNoteId,
-        selectedNoteId,
+        selectedAnswer,
+        selectedNoteId: selectedAnswer,
       })
 
       const practiceStartedAt = practice.startedAt
@@ -522,8 +522,8 @@ function App() {
       setPractice({
         ...practice,
         feedback: 'correct',
-        selectedAnswer: selectedNoteId,
-        selectedNoteId,
+        selectedAnswer,
+        selectedNoteId: selectedAnswer,
       })
 
       const practiceStartedAt = practice.startedAt
@@ -552,7 +552,7 @@ function App() {
       questionId: question.id,
       noteId: melodyId,
       selectedAnswer: melodyId,
-      selectedNoteId,
+      selectedNoteId: selectedAnswer,
       correctAnswer: melodyId,
       correctNoteId: correctNoteId,
       isCorrect: !practice.questionHadWrong,
@@ -565,8 +565,8 @@ function App() {
       ...practice,
       records,
       feedback: 'correct',
-      selectedAnswer: selectedNoteId,
-      selectedNoteId,
+      selectedAnswer,
+      selectedNoteId: selectedAnswer,
     })
 
     const practiceStartedAt = practice.startedAt
@@ -1027,7 +1027,7 @@ function PracticeView({
     ''
   const answeredCount = practice.records.length
   const progress = practice.summary ? 100 : Math.round((answeredCount / practice.total) * 100)
-  const handlePianoClick = (noteId: string) => onAnswer(noteId.replace(/\d/g, '') as AnswerName, noteId)
+  const handlePianoClick = (answer: string) => onAnswer(answer as AnswerName, answer)
   const combo = getTrailingCorrectStreak(practice.records)
   const tapTargetCount = rhythmTapQuestion?.tapBeats.length ?? 0
   const tapCount = practice.tapTimes?.length ?? 0
@@ -1231,7 +1231,8 @@ function PracticeView({
           feedback={practice.feedback}
           labelMode={labelMode}
           selectedNoteId={practice.selectedNoteId}
-          correctNoteId={getPlayableNoteId(melodyQuestion.notes[melodyQuestion.currentStep])}
+          correctAnswer={melodyQuestion.notes[melodyQuestion.currentStep].name}
+          registerLabel={getRegisterLabel(melodyQuestion.notes[melodyQuestion.currentStep])}
           onPianoClick={onMelodyAnswer}
         />
       ) : noteQuestion && answerMode === 'text' ? (
@@ -1267,7 +1268,8 @@ function PracticeView({
             feedback={practice.feedback}
             labelMode={labelMode}
             selectedNoteId={practice.selectedNoteId}
-            correctNoteId={getPlayableNoteId(noteQuestion.note)}
+            correctAnswer={noteQuestion.note.name}
+            registerLabel={getRegisterLabel(noteQuestion.note)}
             onPianoClick={handlePianoClick}
           />
         )
@@ -1845,6 +1847,13 @@ function getAdjacentWeakPair(notes: NoteItem[]): [string, string] | undefined {
 
 function getPlayableNoteId(note: NoteItem): string {
   return note.pitchId ?? note.id
+}
+
+function getRegisterLabel(note: NoteItem): string {
+  const pitchId = getPlayableNoteId(note)
+  const register =
+    note.octave <= 3 ? '低音区' : note.octave === 4 && note.staffStep <= 5 ? '中央音区' : '高音区'
+  return `${register} · ${pitchId}`
 }
 
 function buildRhythmDeck(requestedCount: number): string[] {

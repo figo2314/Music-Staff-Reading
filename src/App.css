@@ -751,15 +751,39 @@ h2 {
 .piano-wrap {
   display: grid;
   place-items: center;
+  gap: 8px;
   width: 100%;
   padding: 4px 0 8px;
   touch-action: manipulation;
 }
 
+.piano-register-hint {
+  min-height: 38px;
+  border: 1px solid rgba(24, 169, 153, 0.16);
+  border-radius: 8px;
+  background: rgba(238, 248, 246, 0.86);
+  color: #1f2d35;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 13px;
+  font-size: 0.9rem;
+}
+
+.piano-register-hint strong {
+  color: #168779;
+  font-size: 0.78rem;
+}
+
+.piano-register-hint span {
+  font-weight: 900;
+}
+
 .piano-keyboard {
   position: relative;
-  width: min(100%, 760px);
-  height: clamp(154px, 28vw, 224px);
+  width: min(100%, 560px);
+  height: clamp(176px, 32vw, 236px);
   border-radius: 10px;
   background: #dce8e7;
   box-shadow: 0 14px 28px rgba(37, 68, 76, 0.14);
@@ -772,7 +796,7 @@ h2 {
 
 .piano-white-keys {
   display: grid;
-  grid-template-columns: repeat(20, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   width: 100%;
   height: 100%;
 }
@@ -804,8 +828,8 @@ h2 {
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
-  padding: 0 2px 12px;
-  font-size: clamp(0.58rem, 1.35vw, 0.82rem);
+  padding: 0 2px 14px;
+  font-size: clamp(0.88rem, 2vw, 1.15rem);
   font-weight: 900;
 }
 
@@ -815,7 +839,7 @@ h2 {
 
 .piano-key.white small {
   color: #809097;
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 800;
 }
 
@@ -823,7 +847,7 @@ h2 {
   position: absolute;
   top: 0;
   z-index: 2;
-  width: 3.1%;
+  width: 8.2%;
   height: 65%;
   transform: translateX(-50%);
   border: 1px solid #17232a;
@@ -1422,7 +1446,7 @@ h2 {
   }
 
   .piano-keyboard {
-    height: 158px;
+    height: 170px;
   }
 
   .piano-key.white {
@@ -1430,11 +1454,12 @@ h2 {
   }
 
   .piano-key.white span {
-    display: none;
+    display: block;
+    font-size: 0.86rem;
   }
 
   .piano-key.white small {
     display: block;
-    font-size: 0.56rem;
+    font-size: 0.54rem;
   }
 }
