@@ -159,6 +159,71 @@ const navItems: Array<{ view: ViewName; label: string; icon: typeof Home }> = [
   { view: 'settings', label: '设置', icon: Settings },
 ]
 
+const stickerCatalog: Array<{
+  id: string
+  name: string
+  description: string
+  unlockHint: string
+  icon: typeof Star
+}> = [
+  {
+    id: 'daily-sun',
+    name: '今日小太阳',
+    description: '今天已经认真练过一轮',
+    unlockHint: '完成一轮有效练习',
+    icon: Sparkles,
+  },
+  {
+    id: 'gold-star',
+    name: '金色星星',
+    description: '一次全对获得',
+    unlockHint: '完成一次全对练习',
+    icon: Star,
+  },
+  {
+    id: 'repair-star',
+    name: '修复星',
+    description: '复习错音后重新答稳',
+    unlockHint: '把一个薄弱音练稳定',
+    icon: Check,
+  },
+  {
+    id: 'streak-ribbon',
+    name: '连练彩带',
+    description: '连续练习 3 天',
+    unlockHint: '连续 3 天完成练习',
+    icon: CalendarDays,
+  },
+  {
+    id: 'tap-metronome',
+    name: '小节拍器',
+    description: '跟拍练习稳定完成',
+    unlockHint: '跟拍练习达到 80%',
+    icon: Timer,
+  },
+  {
+    id: 'melody-ribbon',
+    name: '旋律彩带',
+    description: '短旋律练习稳定完成',
+    unlockHint: '小旋律练习达到 80%',
+    icon: Music2,
+  },
+  {
+    id: 'five-notes',
+    name: '五音花环',
+    description: '掌握 5 个音',
+    unlockHint: '点亮 5 张音符卡',
+    icon: Sparkles,
+  },
+  {
+    id: 'ten-notes',
+    name: '小舞台',
+    description: '掌握 10 个音',
+    unlockHint: '点亮 10 张音符卡',
+    icon: Trophy,
+  },
+]
+
 function App() {
   const [state, setState] = useState<AppState>(() => loadAppState())
   const [view, setView] = useState<ViewName>('home')
@@ -1466,6 +1531,7 @@ function RewardsView({ state }: { state: AppState }) {
   const noteCards = ALL_NOTES.filter((note) => !note.accidental)
   const masteredCount = noteCards.filter((note) => state.noteProgress[note.id]?.mastered).length
   const practicedCount = noteCards.filter((note) => (state.noteProgress[note.id]?.totalAttempts ?? 0) > 0).length
+  const unlockedStickerMap = new Map(state.rewards.stickers.map((sticker) => [sticker.id, sticker]))
 
   return (
     <section className="screen">
@@ -1509,18 +1575,21 @@ function RewardsView({ state }: { state: AppState }) {
         )}
       </div>
       <h2 className="section-title">贴纸收藏</h2>
-      <div className="collection-grid">
-        {state.rewards.stickers.length > 0 ? (
-          state.rewards.stickers.map((sticker) => (
-            <div className="collection-item sticker" key={sticker.id}>
-              <Sparkles size={26} />
+      <div className="sticker-preview-grid">
+        {stickerCatalog.map((sticker) => {
+          const unlockedSticker = unlockedStickerMap.get(sticker.id)
+          const Icon = sticker.icon
+          return (
+            <div className={`sticker-preview-card ${unlockedSticker ? 'unlocked' : 'locked'}`} key={sticker.id}>
+              <div className="sticker-preview-icon">
+                <Icon fill={unlockedSticker ? 'currentColor' : 'none'} size={30} />
+              </div>
               <strong>{sticker.name}</strong>
-              <span>{sticker.description}</span>
+              <span>{unlockedSticker ? sticker.description : sticker.unlockHint}</span>
+              <small>{unlockedSticker ? '已获得' : '待解锁'}</small>
             </div>
-          ))
-        ) : (
-          <EmptyState text="全对或掌握更多音符后会解锁贴纸。" />
-        )}
+          )
+        })}
       </div>
     </section>
   )

@@ -325,9 +325,11 @@ function updateRewards(
   }
   if (session.questionCount >= 8 && session.earnedStars > 0) {
     unlockBadge('daily-complete', '今日练习完成', '完成一轮有效练习')
+    unlockSticker('daily-sun', '今日小太阳', '今天已经认真练过一轮')
   }
   if (streakDays >= 3) {
     unlockBadge('streak-3', '三天连练', '连续练习 3 天')
+    unlockSticker('streak-ribbon', '连练彩带', '连续练习 3 天')
   }
   if (streakDays >= 7) {
     unlockBadge('streak-7', '一周小乐手', '连续练习 7 天')

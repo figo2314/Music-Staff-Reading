@@ -1239,6 +1239,83 @@ h2 {
   font-size: 0.84rem;
 }
 
+.sticker-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sticker-preview-card {
+  min-height: 132px;
+  border-radius: 8px;
+  border: 1px solid rgba(85, 118, 130, 0.13);
+  background: rgba(255, 255, 255, 0.88);
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 7px;
+  padding: 14px;
+}
+
+.sticker-preview-card strong {
+  color: #40545d;
+  font-weight: 950;
+}
+
+.sticker-preview-card span {
+  color: #667882;
+  font-size: 0.84rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.sticker-preview-card small {
+  border-radius: 999px;
+  background: rgba(85, 118, 130, 0.08);
+  color: #667882;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 3px 8px;
+}
+
+.sticker-preview-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+}
+
+.sticker-preview-card.unlocked {
+  border-color: rgba(24, 169, 153, 0.24);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(24, 169, 153, 0.12));
+  box-shadow: 0 14px 26px rgba(24, 169, 153, 0.1);
+}
+
+.sticker-preview-card.unlocked .sticker-preview-icon {
+  background: rgba(24, 169, 153, 0.16);
+  color: #168779;
+}
+
+.sticker-preview-card.unlocked small {
+  background: rgba(24, 169, 153, 0.16);
+  color: #168779;
+}
+
+.sticker-preview-card.locked {
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.sticker-preview-card.locked .sticker-preview-icon {
+  background: rgba(85, 118, 130, 0.08);
+  color: #8b99a0;
+}
+
+.sticker-preview-card.locked strong,
+.sticker-preview-card.locked span {
+  color: #7b8790;
+}
+
 .empty-state {
   grid-column: 1 / -1;
   color: #667882;
@@ -1595,6 +1672,10 @@ h2 {
   }
 
   .collection-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sticker-preview-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
