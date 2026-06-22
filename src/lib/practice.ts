@@ -7,6 +7,7 @@ import type {
   Badge,
   NoteItem,
   NoteProgress,
+  PracticeMode,
   PracticeSession,
   PracticeSummary,
   RewardState,
@@ -133,6 +134,7 @@ export function finishPracticeSession(
   levelId: string,
   startedAt: number,
   sessionType: SessionType = 'note',
+  mode?: PracticeMode,
 ): {
   state: AppState
   summary: PracticeSummary
@@ -146,6 +148,7 @@ export function finishPracticeSession(
   const session: PracticeSession = {
     id: `session-${startedAt}`,
     sessionType,
+    mode,
     startedAt,
     endedAt,
     levelId,
@@ -279,6 +282,7 @@ function updateRewards(
   const masteredCount = masteredProgress.length
   const perfectSession = session.questionCount > 0 && session.correctCount === session.questionCount
   const sessionAccuracy = session.questionCount > 0 ? session.correctCount / session.questionCount : 0
+  const totalStarsAfterSession = rewards.totalStars + session.earnedStars
   const practicedNoteIds = new Set(session.records.map((record) => record.noteId).filter((noteId) => NOTES_BY_ID[noteId]))
   const repairedWeakNoteIds = Array.from(practicedNoteIds).filter((noteId) => {
     const item = progress[noteId]
@@ -292,6 +296,7 @@ function updateRewards(
   )
   const noteSession = session.sessionType === 'note' || session.sessionType === 'smart'
   const rhythmSession = session.sessionType === 'rhythm' || session.sessionType === 'rhythmTap'
+  const masteredBassCount = masteredProgress.filter((item) => NOTES_BY_ID[item.noteId]?.clef === 'bass').length
 
   const unlockBadge = (id: string, name: string, description: string) => {
     if (badgeMap.has(id)) {
@@ -316,14 +321,19 @@ function updateRewards(
   }
   if (session.sessionType === 'rhythm') {
     unlockBadge('first-rhythm', '第一小节节奏', '完成第一次节奏练习')
+    unlockSticker('rhythm-drum', '节奏小鼓', '完成第一次节奏练习')
   }
   if (session.sessionType === 'melody') {
     unlockBadge('first-melody', '第一句小旋律', '完成第一次小旋律练习')
   }
   if (session.sessionType === 'smart') {
     unlockBadge('first-smart', '智能练习开启', '完成第一次智能今日练习')
+    unlockSticker('smart-compass', '智能罗盘', '完成第一次智能今日练习')
   }
-  if (session.questionCount >= 8 && session.earnedStars > 0) {
+  if (session.mode === 'review') {
+    unlockSticker('review-lantern', '复习灯笼', '完成一次薄弱音复习')
+  }
+  if (session.questionCount >= 5 && session.earnedStars > 0) {
     unlockBadge('daily-complete', '今日练习完成', '完成一轮有效练习')
     unlockSticker('daily-sun', '今日小太阳', '今天已经认真练过一轮')
   }
@@ -333,6 +343,7 @@ function updateRewards(
   }
   if (streakDays >= 7) {
     unlockBadge('streak-7', '一周小乐手', '连续练习 7 天')
+    unlockSticker('week-flame', '一周火苗', '连续练习 7 天')
   }
   if (perfectSession) {
     unlockBadge('first-perfect', '全对时刻', '完成一次全对练习')
@@ -347,6 +358,7 @@ function updateRewards(
   }
   if (noteSession && quickCorrectNotes.length >= 5) {
     unlockBadge('quick-reader', '反应变快了', '至少 5 个音在 3 秒内答对')
+    unlockSticker('quick-comet', '快读流星', '至少 5 个音在 3 秒内答对')
   }
   if (rhythmSession && sessionAccuracy >= 0.8) {
     unlockBadge('steady-rhythm', '节奏稳住了', '节奏练习正确率达到 80%')
@@ -363,10 +375,16 @@ function updateRewards(
   if (masteredCount >= 10) {
     unlockSticker('ten-notes', '小舞台', '掌握 10 个音')
   }
+  if (masteredBassCount >= 1) {
+    unlockSticker('bass-anchor', '低音锚点', '点亮第一个低音谱号音符')
+  }
+  if (totalStarsAfterSession >= 30) {
+    unlockSticker('star-collector-30', '星星罐', '累计获得 30 颗星星')
+  }
 
   return {
     rewards: {
-      totalStars: rewards.totalStars + session.earnedStars,
+      totalStars: totalStarsAfterSession,
       streakDays,
       lastPracticeDate: today,
       badges: Array.from(badgeMap.values()),

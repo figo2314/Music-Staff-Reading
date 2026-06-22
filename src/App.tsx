@@ -7,13 +7,17 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Flame,
+  Gauge,
   History,
   Home,
+  Medal,
   Music2,
   RotateCcw,
   Settings,
   Sparkles,
   Star,
+  Target,
   Timer,
   Trophy,
   Volume2,
@@ -188,11 +192,39 @@ const stickerCatalog: Array<{
     icon: Check,
   },
   {
+    id: 'quick-comet',
+    name: '快读流星',
+    description: '至少 5 个音在 3 秒内答对',
+    unlockHint: '一轮里 5 个音快速答对',
+    icon: Gauge,
+  },
+  {
     id: 'streak-ribbon',
     name: '连练彩带',
     description: '连续练习 3 天',
     unlockHint: '连续 3 天完成练习',
     icon: CalendarDays,
+  },
+  {
+    id: 'week-flame',
+    name: '一周火苗',
+    description: '连续练习 7 天',
+    unlockHint: '连续 7 天完成练习',
+    icon: Flame,
+  },
+  {
+    id: 'smart-compass',
+    name: '智能罗盘',
+    description: '完成第一次智能今日练习',
+    unlockHint: '完成一次智能练习',
+    icon: Target,
+  },
+  {
+    id: 'rhythm-drum',
+    name: '节奏小鼓',
+    description: '完成第一次节奏练习',
+    unlockHint: '完成一次节奏识别',
+    icon: Music2,
   },
   {
     id: 'tap-metronome',
@@ -209,6 +241,13 @@ const stickerCatalog: Array<{
     icon: Music2,
   },
   {
+    id: 'bass-anchor',
+    name: '低音锚点',
+    description: '点亮第一个低音谱号音符',
+    unlockHint: '掌握任意一个低音谱号音',
+    icon: Medal,
+  },
+  {
     id: 'five-notes',
     name: '五音花环',
     description: '掌握 5 个音',
@@ -221,6 +260,20 @@ const stickerCatalog: Array<{
     description: '掌握 10 个音',
     unlockHint: '点亮 10 张音符卡',
     icon: Trophy,
+  },
+  {
+    id: 'star-collector-30',
+    name: '星星罐',
+    description: '累计获得 30 颗星星',
+    unlockHint: '累计获得 30 颗星星',
+    icon: Star,
+  },
+  {
+    id: 'review-lantern',
+    name: '复习灯笼',
+    description: '完成一次薄弱音复习',
+    unlockHint: '从薄弱音复习开始练习',
+    icon: Sparkles,
   },
 ]
 
@@ -526,7 +579,14 @@ function App() {
         }
 
         if (records.length >= current.total && !current.pendingContrastNoteId) {
-          const result = finishPracticeSession(state, records, current.levelId, current.startedAt, current.sessionType)
+          const result = finishPracticeSession(
+            state,
+            records,
+            current.levelId,
+            current.startedAt,
+            current.sessionType,
+            current.mode,
+          )
           setState(result.state)
           if (state.settings.soundEnabled) {
             playFeedbackTone('complete')
@@ -671,7 +731,14 @@ function App() {
         }
 
         if (records.length >= current.total) {
-          const result = finishPracticeSession(state, records, current.levelId, current.startedAt, current.sessionType)
+          const result = finishPracticeSession(
+            state,
+            records,
+            current.levelId,
+            current.startedAt,
+            current.sessionType,
+            current.mode,
+          )
           setState(result.state)
           if (state.settings.soundEnabled) {
             playFeedbackTone('complete')
@@ -784,7 +851,14 @@ function App() {
         }
 
         if (records.length >= current.total) {
-          const result = finishPracticeSession(state, records, current.levelId, current.startedAt, current.sessionType)
+          const result = finishPracticeSession(
+            state,
+            records,
+            current.levelId,
+            current.startedAt,
+            current.sessionType,
+            current.mode,
+          )
           setState(result.state)
           if (state.settings.soundEnabled) {
             playFeedbackTone('complete')

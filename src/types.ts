@@ -95,6 +95,7 @@ export interface NoteProgress {
 export interface PracticeSession {
   id: string
   sessionType?: SessionType
+  mode?: PracticeMode
   startedAt: number
   endedAt: number
   levelId: string
