@@ -157,6 +157,12 @@ export function finishPracticeSession(
   }
 
   const noteProgress = { ...state.noteProgress }
+  const previousWeakNoteIds = new Set(getWeakNoteIds(state.noteProgress))
+  const previousMasteredNoteIds = new Set(
+    Object.values(state.noteProgress)
+      .filter((item) => item.mastered)
+      .map((item) => item.noteId),
+  )
   if (sessionType === 'note' || sessionType === 'smart') {
     for (const record of records) {
       if (!NOTES_BY_ID[record.noteId]) {
@@ -168,7 +174,14 @@ export function finishPracticeSession(
   }
 
   const sessions = [session, ...state.sessions].slice(0, 90)
-  const { rewards, newBadges, newStickers } = updateRewards(state.rewards, sessions, noteProgress, session)
+  const { rewards, newBadges, newStickers } = updateRewards(
+    state.rewards,
+    sessions,
+    noteProgress,
+    session,
+    previousWeakNoteIds,
+    previousMasteredNoteIds,
+  )
   const nextState: AppState = {
     ...state,
     noteProgress,
@@ -242,6 +255,8 @@ function updateRewards(
   sessions: PracticeSession[],
   progress: Record<string, NoteProgress>,
   session: PracticeSession,
+  previousWeakNoteIds: Set<string>,
+  previousMasteredNoteIds: Set<string>,
 ): {
   rewards: RewardState
   newBadges: Badge[]
@@ -260,8 +275,23 @@ function updateRewards(
   const stickerMap = new Map(rewards.stickers.map((sticker) => [sticker.id, sticker]))
   const newBadges: Badge[] = []
   const newStickers: Sticker[] = []
-  const masteredCount = Object.values(progress).filter((item) => item.mastered).length
+  const masteredProgress = Object.values(progress).filter((item) => item.mastered)
+  const masteredCount = masteredProgress.length
   const perfectSession = session.questionCount > 0 && session.correctCount === session.questionCount
+  const sessionAccuracy = session.questionCount > 0 ? session.correctCount / session.questionCount : 0
+  const practicedNoteIds = new Set(session.records.map((record) => record.noteId).filter((noteId) => NOTES_BY_ID[noteId]))
+  const repairedWeakNoteIds = Array.from(practicedNoteIds).filter((noteId) => {
+    const item = progress[noteId]
+    return previousWeakNoteIds.has(noteId) && item && !isWeakNote(item)
+  })
+  const newlyMasteredNoteIds = masteredProgress
+    .map((item) => item.noteId)
+    .filter((noteId) => !previousMasteredNoteIds.has(noteId))
+  const quickCorrectNotes = session.records.filter(
+    (record) => NOTES_BY_ID[record.noteId] && record.isCorrect && record.responseTimeMs <= 3000,
+  )
+  const noteSession = session.sessionType === 'note' || session.sessionType === 'smart'
+  const rhythmSession = session.sessionType === 'rhythm' || session.sessionType === 'rhythmTap'
 
   const unlockBadge = (id: string, name: string, description: string) => {
     if (badgeMap.has(id)) {
@@ -293,6 +323,9 @@ function updateRewards(
   if (session.sessionType === 'smart') {
     unlockBadge('first-smart', '智能练习开启', '完成第一次智能今日练习')
   }
+  if (session.questionCount >= 8 && session.earnedStars > 0) {
+    unlockBadge('daily-complete', '今日练习完成', '完成一轮有效练习')
+  }
   if (streakDays >= 3) {
     unlockBadge('streak-3', '三天连练', '连续练习 3 天')
   }
@@ -302,6 +335,25 @@ function updateRewards(
   if (perfectSession) {
     unlockBadge('first-perfect', '全对时刻', '完成一次全对练习')
     unlockSticker('gold-star', '金色星星', '一次全对获得')
+  }
+  if (noteSession && repairedWeakNoteIds.length > 0) {
+    unlockBadge('weak-note-repair', '修好一个难音', '把薄弱音重新练稳定')
+    unlockSticker('repair-star', '修复星', '复习错音后重新答稳')
+  }
+  if (noteSession && newlyMasteredNoteIds.length > 0) {
+    unlockBadge('note-card-lit', '点亮音符卡', '有新的音符进入掌握状态')
+  }
+  if (noteSession && quickCorrectNotes.length >= 5) {
+    unlockBadge('quick-reader', '反应变快了', '至少 5 个音在 3 秒内答对')
+  }
+  if (rhythmSession && sessionAccuracy >= 0.8) {
+    unlockBadge('steady-rhythm', '节奏稳住了', '节奏练习正确率达到 80%')
+  }
+  if (session.sessionType === 'rhythmTap' && sessionAccuracy >= 0.8) {
+    unlockSticker('tap-metronome', '小节拍器', '跟拍练习稳定完成')
+  }
+  if (session.sessionType === 'melody' && sessionAccuracy >= 0.8) {
+    unlockSticker('melody-ribbon', '旋律彩带', '短旋律练习稳定完成')
   }
   if (masteredCount >= 5) {
     unlockSticker('five-notes', '五音花环', '掌握 5 个音')

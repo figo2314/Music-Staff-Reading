@@ -1138,6 +1138,75 @@ h2 {
   line-height: 1;
 }
 
+.reward-hero small {
+  color: #667882;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.note-collection-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.note-collection-card {
+  min-height: 82px;
+  border-radius: 8px;
+  border: 1px solid rgba(85, 118, 130, 0.13);
+  background: rgba(255, 255, 255, 0.78);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3px;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.note-collection-card strong {
+  color: #40545d;
+  font-size: 1.05rem;
+  font-weight: 1000;
+}
+
+.note-collection-card span {
+  color: #667882;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.note-collection-card small {
+  border-radius: 999px;
+  color: #667882;
+  font-size: 0.68rem;
+  font-weight: 900;
+  padding: 2px 7px;
+}
+
+.note-collection-card.mastered {
+  border-color: rgba(24, 169, 153, 0.32);
+  background: rgba(24, 169, 153, 0.12);
+}
+
+.note-collection-card.mastered small {
+  background: rgba(24, 169, 153, 0.16);
+  color: #168779;
+}
+
+.note-collection-card.learning {
+  border-color: rgba(246, 178, 59, 0.32);
+  background: rgba(246, 178, 59, 0.12);
+}
+
+.note-collection-card.learning small {
+  background: rgba(246, 178, 59, 0.18);
+  color: #a66f12;
+}
+
+.note-collection-card.locked {
+  opacity: 0.68;
+}
+
 .collection-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1527,6 +1596,10 @@ h2 {
 
   .collection-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .note-collection-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 
   .note-chip-list {

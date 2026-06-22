@@ -25,7 +25,15 @@ import { MelodyStaff } from './components/MelodyStaff'
 import { PianoKeyboard } from './components/PianoKeyboard'
 import { RhythmStaff } from './components/RhythmStaff'
 import { StaffCanvas } from './components/StaffCanvas'
-import { getLevel, getNoteDisplay, getNoteLabel, LEVELS, NATURAL_TREBLE_NOTES, NOTES_BY_ID } from './data/notes'
+import {
+  ALL_NOTES,
+  getLevel,
+  getNoteDisplay,
+  getNoteLabel,
+  LEVELS,
+  NATURAL_TREBLE_NOTES,
+  NOTES_BY_ID,
+} from './data/notes'
 import { RHYTHM_ANSWER_OPTIONS, RHYTHM_PATTERNS, RHYTHM_PATTERNS_BY_ID } from './data/rhythms'
 import { playFeedbackTone, playPianoNote } from './lib/audio'
 import { launchCompletionConfetti } from './lib/celebration'
@@ -1455,6 +1463,10 @@ function RhythmTapControls({
 }
 
 function RewardsView({ state }: { state: AppState }) {
+  const noteCards = ALL_NOTES.filter((note) => !note.accidental)
+  const masteredCount = noteCards.filter((note) => state.noteProgress[note.id]?.mastered).length
+  const practicedCount = noteCards.filter((note) => (state.noteProgress[note.id]?.totalAttempts ?? 0) > 0).length
+
   return (
     <section className="screen">
       <ScreenHeader eyebrow="星星和徽章" title="奖励" />
@@ -1462,9 +1474,26 @@ function RewardsView({ state }: { state: AppState }) {
         <div>
           <span>总星星</span>
           <strong>{state.rewards.totalStars}</strong>
+          <small>
+            音符卡 {masteredCount}/{noteCards.length} 点亮，{practicedCount} 个已开始练习
+          </small>
         </div>
         <Star fill="currentColor" size={72} />
       </section>
+      <h2 className="section-title">音符收集册</h2>
+      <div className="note-collection-grid">
+        {noteCards.map((note) => {
+          const progress = state.noteProgress[note.id]
+          const status = progress?.mastered ? 'mastered' : progress?.totalAttempts ? 'learning' : 'locked'
+          return (
+            <div className={`note-collection-card ${status}`} key={note.id}>
+              <strong>{getNoteDisplay(note, 'letter')}</strong>
+              <span>{note.clef === 'bass' ? '低音谱号' : '高音谱号'}</span>
+              <small>{status === 'mastered' ? '已点亮' : status === 'learning' ? '练习中' : '未开始'}</small>
+            </div>
+          )
+        })}
+      </div>
       <h2 className="section-title">徽章墙</h2>
       <div className="collection-grid">
         {state.rewards.badges.length > 0 ? (
