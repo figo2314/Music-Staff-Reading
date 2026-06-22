@@ -141,6 +141,7 @@ const MELODY_ID_SEPARATOR = '|'
 const SMART_DECK_SEPARATOR = ':'
 
 type SmartDeckKind = 'note' | 'rhythm' | 'melody'
+type SmartStage = 'warmup' | 'weak' | 'rhythm' | 'melody' | 'challenge'
 
 const navItems: Array<{ view: ViewName; label: string; icon: typeof Home }> = [
   { view: 'home', label: '练习', icon: Home },
@@ -1054,6 +1055,7 @@ function PracticeView({
   const tapTargetCount = rhythmTapQuestion?.tapBeats.length ?? 0
   const tapCount = practice.tapTimes?.length ?? 0
   const prepBeat = getPrepBeat(practice.tapPrepStartedAt, practice.tapStartedAt)
+  const smartStage = practice.sessionType === 'smart' ? getSmartStage(practice.questionDeck[practice.currentIndex]) : undefined
   const noteHintLevel = noteQuestion ? getHintLevel(noteQuestion.note, noteProgress) : 'full'
   const melodyHintLevel = melodyQuestion
     ? getHintLevel(melodyQuestion.notes[melodyQuestion.currentStep], noteProgress)
@@ -1150,8 +1152,11 @@ function PracticeView({
         <button className="icon-button" type="button" onClick={onHome} aria-label="退出练习">
           <X aria-hidden="true" size={20} />
         </button>
-        <div className="progress-bar" aria-label={`练习进度 ${progress}%`}>
-          <span style={{ width: `${progress}%` }} />
+        <div className="practice-progress">
+          {smartStage && <span className="stage-pill">{getStageLabel(smartStage)}</span>}
+          <div className="progress-bar" aria-label={`练习进度 ${progress}%`}>
+            <span style={{ width: `${progress}%` }} />
+          </div>
         </div>
         <strong>{Math.min(answeredCount + 1, practice.total)}/{practice.total}</strong>
       </div>
@@ -1753,37 +1758,51 @@ function buildSmartDeck(
 ): string[] {
   const total = Math.max(5, requestedCount)
   const weakNotes = notes.filter((note) => isWeakNote(progress[note.id]))
-  const noteCount = Math.max(1, Math.round(total * 0.4))
+  const warmupCount = Math.max(1, Math.round(total * 0.2))
   const weakCount = weakNotes.length > 0 ? Math.max(1, Math.round(total * 0.25)) : 0
   const rhythmCount = Math.max(1, Math.round(total * 0.15))
-  const melodyCount = Math.max(1, total - noteCount - weakCount - rhythmCount)
+  const melodyCount = Math.max(1, Math.round(total * 0.2))
+  const challengeCount = Math.max(1, total - warmupCount - weakCount - rhythmCount - melodyCount)
 
-  const noteDeck = buildNoteDeck(notes, progress, noteCount + weakCount)
+  const noteDeck = buildNoteDeck(notes, progress, warmupCount + challengeCount + weakCount)
   const weakDeck = weakNotes.length > 0 ? buildNoteDeck(weakNotes, progress, weakCount) : []
   const rhythmDeck = buildRhythmDeck(rhythmCount)
   const melodyDeck = buildMelodyDeck(notes, melodyCount)
+  const warmupDeck = noteDeck.slice(0, warmupCount)
+  const challengeDeck = noteDeck.slice(warmupCount, warmupCount + challengeCount)
   const smartItems = [
-    ...noteDeck.slice(0, noteCount).map((noteId) => createSmartDeckItem('note', noteId)),
-    ...weakDeck.map((noteId) => createSmartDeckItem('note', noteId)),
-    ...rhythmDeck.map((rhythmId) => createSmartDeckItem('rhythm', rhythmId)),
-    ...melodyDeck.map((melodyId) => createSmartDeckItem('melody', melodyId)),
+    ...warmupDeck.map((noteId) => createSmartDeckItem('warmup', 'note', noteId)),
+    ...weakDeck.map((noteId) => createSmartDeckItem('weak', 'note', noteId)),
+    ...rhythmDeck.map((rhythmId) => createSmartDeckItem('rhythm', 'rhythm', rhythmId)),
+    ...melodyDeck.map((melodyId) => createSmartDeckItem('melody', 'melody', melodyId)),
+    ...challengeDeck.map((noteId) => createSmartDeckItem('challenge', 'note', noteId)),
   ]
 
-  return shuffleLocal(Array.from(new Set(smartItems))).slice(0, total)
+  const uniqueItems = Array.from(new Set(smartItems))
+  if (uniqueItems.length >= total) {
+    return uniqueItems.slice(0, total)
+  }
+
+  const fallbackDeck = buildNoteDeck(notes, progress, total).map((noteId) => createSmartDeckItem('challenge', 'note', noteId))
+  return Array.from(new Set([...uniqueItems, ...fallbackDeck])).slice(0, total)
 }
 
-function createSmartDeckItem(kind: SmartDeckKind, id: string): string {
-  return `${kind}${SMART_DECK_SEPARATOR}${id}`
+function createSmartDeckItem(stage: SmartStage, kind: SmartDeckKind, id: string): string {
+  return `${stage}${SMART_DECK_SEPARATOR}${kind}${SMART_DECK_SEPARATOR}${id}`
 }
 
-function parseSmartDeckItem(item: string): { kind: SmartDeckKind; id: string } {
-  const separatorIndex = item.indexOf(SMART_DECK_SEPARATOR)
-  if (separatorIndex < 0) {
+function parseSmartDeckItem(item: string): { stage?: SmartStage; kind: SmartDeckKind; id: string } {
+  const [first, second, ...rest] = item.split(SMART_DECK_SEPARATOR)
+  if (!second) {
     return { kind: 'note', id: item }
   }
+  if (!rest.length) {
+    return { kind: first as SmartDeckKind, id: second }
+  }
   return {
-    kind: item.slice(0, separatorIndex) as SmartDeckKind,
-    id: item.slice(separatorIndex + 1),
+    stage: first as SmartStage,
+    kind: second as SmartDeckKind,
+    id: rest.join(SMART_DECK_SEPARATOR),
   }
 }
 
@@ -1796,6 +1815,21 @@ function createQuestionFromDeckItem(deckItem: string, includeAccidentals: boolea
     return createMelodyQuestion(item.id)
   }
   return createNoteQuestion(item.id, includeAccidentals)
+}
+
+function getSmartStage(deckItem: string): SmartStage | undefined {
+  return parseSmartDeckItem(deckItem).stage
+}
+
+function getStageLabel(stage: SmartStage): string {
+  const labels: Record<SmartStage, string> = {
+    warmup: '热身',
+    weak: '薄弱音',
+    rhythm: '节奏',
+    melody: '小旋律',
+    challenge: '挑战',
+  }
+  return labels[stage]
 }
 
 function createNoteQuestion(noteId: string, includeAccidentals: boolean, isContrast = false): NoteQuestionState {
