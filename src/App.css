@@ -978,6 +978,39 @@ h2 {
   font-weight: 800;
 }
 
+.practice-report {
+  border: 1px solid rgba(85, 118, 130, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  text-align: left;
+}
+
+.practice-report h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.practice-report div {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 10px;
+}
+
+.practice-report strong {
+  color: #168779;
+  font-size: 0.86rem;
+}
+
+.practice-report span {
+  color: #4f626b;
+  font-size: 0.92rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
 .reward-strip {
   display: flex;
   flex-wrap: wrap;

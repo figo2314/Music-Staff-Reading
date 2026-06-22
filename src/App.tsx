@@ -57,6 +57,7 @@ interface NoteQuestionState {
   note: NoteItem
   startedAt: number
   answerOptions: AnswerName[]
+  isContrast?: boolean
 }
 
 interface RhythmQuestionState {
@@ -104,6 +105,7 @@ interface PracticeState {
   tapTimes?: number[]
   tapFeedbacks?: TapFeedback[]
   tapResult?: TapResult
+  pendingContrastNoteId?: string
   summary?: PracticeSummary
 }
 
@@ -124,6 +126,12 @@ interface TapResult {
 interface PracticeDiagnosis {
   title: string
   detail: string
+}
+
+interface PracticeReport {
+  weakText: string
+  slowText: string
+  nextText: string
 }
 
 const TAP_BEAT_MS = 667
@@ -371,12 +379,17 @@ function App() {
     }
 
     if (!isCorrect) {
+      const pendingContrastNoteId =
+        practice.question.kind === 'note'
+          ? getContrastNoteId(practice.question.note, answer as AnswerName, currentLevel.noteIds)
+          : practice.pendingContrastNoteId
       setPractice({
         ...practice,
         feedback: 'wrong',
         questionHadWrong: true,
         selectedAnswer: answer,
         selectedNoteId,
+        pendingContrastNoteId,
       })
 
       const practiceStartedAt = practice.startedAt
@@ -437,7 +450,7 @@ function App() {
           return current
         }
 
-        if (records.length >= current.total) {
+        if (records.length >= current.total && !current.pendingContrastNoteId) {
           const result = finishPracticeSession(state, records, current.levelId, current.startedAt, current.sessionType)
           setState(result.state)
           if (state.settings.soundEnabled) {
@@ -454,20 +467,25 @@ function App() {
 
         const nextIndex = current.currentIndex + 1
         const includeAccidentals = state.settings.difficultyMode === 'chromatic'
+        const contrastNoteId = current.pendingContrastNoteId
         return {
           ...current,
           records,
-          currentIndex: nextIndex,
+          total: contrastNoteId ? current.total + 1 : current.total,
+          currentIndex: contrastNoteId ? current.currentIndex : nextIndex,
           selectedAnswer: undefined,
           selectedNoteId: undefined,
           feedback: 'idle',
           questionHadWrong: false,
+          pendingContrastNoteId: undefined,
           question:
-            current.sessionType === 'smart'
-              ? createQuestionFromDeckItem(current.questionDeck[nextIndex], includeAccidentals)
-              : current.sessionType === 'rhythm'
-                ? createRhythmQuestion(current.questionDeck[nextIndex])
-                : createNoteQuestion(current.questionDeck[nextIndex], includeAccidentals),
+            contrastNoteId && NOTES_BY_ID[contrastNoteId]
+              ? createNoteQuestion(contrastNoteId, includeAccidentals, true)
+              : current.sessionType === 'smart'
+                ? createQuestionFromDeckItem(current.questionDeck[nextIndex], includeAccidentals)
+                : current.sessionType === 'rhythm'
+                  ? createRhythmQuestion(current.questionDeck[nextIndex])
+                  : createNoteQuestion(current.questionDeck[nextIndex], includeAccidentals),
         }
       })
     }, state.settings.animationLevel === 'simple' ? 450 : 760)
@@ -1037,6 +1055,7 @@ function PracticeView({
     const session = practice.summary.session
     const accuracy = session.questionCount ? Math.round((session.correctCount / session.questionCount) * 100) : 0
     const bestStreak = getBestCorrectStreak(session.records)
+    const report = getPracticeReport(session.records)
     return (
       <section className="screen finish-screen">
         <div className="finish-burst" aria-hidden="true">
@@ -1070,6 +1089,21 @@ function PracticeView({
           <MetricCard icon={Check} label="答对题数" value={`${session.correctCount}/${session.questionCount}`} />
           <MetricCard icon={Clock3} label="平均用时" value={`${(session.avgResponseTimeMs / 1000).toFixed(1)}s`} />
           <MetricCard icon={BarChart3} label="最高连对" value={`${bestStreak} 题`} />
+        </div>
+        <div className="practice-report">
+          <h2>练习报告</h2>
+          <div>
+            <strong>易错点</strong>
+            <span>{report.weakText}</span>
+          </div>
+          <div>
+            <strong>反应速度</strong>
+            <span>{report.slowText}</span>
+          </div>
+          <div>
+            <strong>下次建议</strong>
+            <span>{report.nextText}</span>
+          </div>
         </div>
         {(practice.summary.newBadges.length > 0 || practice.summary.newStickers.length > 0) && (
           <div className="reward-strip">
@@ -1147,7 +1181,9 @@ function PracticeView({
                 ? `${getMelodyDirectionLabel(melodyQuestion.notes)} · 第 ${melodyQuestion.currentStep + 1}/${melodyQuestion.notes.length} 个音`
               : isRhythmPractice
                 ? '这一小节是哪种节奏？'
-                : '这个音是什么？'}
+                : noteQuestion?.isContrast
+                  ? '对比一下：这次看清楚音的位置'
+                  : '这个音是什么？'}
           </span>
         )}
         {practice.feedback === 'correct' && (
@@ -1745,13 +1781,14 @@ function createQuestionFromDeckItem(deckItem: string, includeAccidentals: boolea
   return createNoteQuestion(item.id, includeAccidentals)
 }
 
-function createNoteQuestion(noteId: string, includeAccidentals: boolean): NoteQuestionState {
+function createNoteQuestion(noteId: string, includeAccidentals: boolean, isContrast = false): NoteQuestionState {
   return {
     kind: 'note',
     id: `q-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     note: NOTES_BY_ID[noteId],
     startedAt: Date.now(),
     answerOptions: buildAnswerOptions(includeAccidentals),
+    isContrast,
   }
 }
 
@@ -1843,6 +1880,25 @@ function getAdjacentWeakPair(notes: NoteItem[]): [string, string] | undefined {
   }
 
   return undefined
+}
+
+function getContrastNoteId(note: NoteItem, selectedAnswer: AnswerName, levelNoteIds: string[]): string | undefined {
+  const levelNotes = levelNoteIds.map((noteId) => NOTES_BY_ID[noteId]).filter(Boolean)
+  const sameClefNotes = levelNotes.filter((item) => item.clef === note.clef && item.id !== note.id)
+  const selectedNameMatch = sameClefNotes.find((item) => item.name === selectedAnswer)
+  if (selectedNameMatch) {
+    return selectedNameMatch.id
+  }
+
+  const adjacentNotes = sameClefNotes
+    .map((item) => ({
+      note: item,
+      distance: Math.abs(item.staffStep - note.staffStep),
+    }))
+    .filter((item) => item.distance > 0)
+    .sort((a, b) => a.distance - b.distance)
+
+  return adjacentNotes[0]?.note.id
 }
 
 function getPlayableNoteId(note: NoteItem): string {
@@ -1947,6 +2003,59 @@ function getSessionTitle(sessionType: SessionType | undefined, levelId: string):
     return '节奏跟拍'
   }
   return sessionType === 'rhythm' ? '节奏型练习' : getLevel(levelId).title
+}
+
+function getPracticeReport(records: AnswerRecord[]): PracticeReport {
+  const noteRecords = records.filter((record) => NOTES_BY_ID[record.noteId])
+  const wrongNoteIds = noteRecords.filter((record) => !record.isCorrect).map((record) => record.noteId)
+  const slowRecords = noteRecords.filter((record) => record.responseTimeMs > 5500)
+  const weakText = getTopNoteText(wrongNoteIds, '本轮没有明显易错音')
+  const slowText =
+    slowRecords.length > 0
+      ? `${getTopNoteText(
+          slowRecords.map((record) => record.noteId),
+          '',
+        )} 反应偏慢，可以下次先热身。`
+      : '反应速度不错，继续保持。'
+  const nextText = getNextPracticeAdvice(noteRecords, wrongNoteIds, slowRecords)
+
+  return {
+    weakText,
+    slowText,
+    nextText,
+  }
+}
+
+function getTopNoteText(noteIds: string[], fallback: string): string {
+  if (noteIds.length === 0) {
+    return fallback
+  }
+  const counts = new Map<string, number>()
+  for (const noteId of noteIds) {
+    counts.set(noteId, (counts.get(noteId) ?? 0) + 1)
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([noteId]) => getNoteDisplay(NOTES_BY_ID[noteId], 'letter'))
+    .join('、')
+}
+
+function getNextPracticeAdvice(
+  noteRecords: AnswerRecord[],
+  wrongNoteIds: string[],
+  slowRecords: AnswerRecord[],
+): string {
+  if (wrongNoteIds.length > 0) {
+    return `下次先练 ${getTopNoteText(wrongNoteIds, '')}，再做小旋律。`
+  }
+  if (slowRecords.length > 0) {
+    return '音基本认得出来了，下一步把每题反应压到 5 秒内。'
+  }
+  if (noteRecords.length === 0) {
+    return '这轮以节奏或旋律为主，下次可以穿插几题单音识谱。'
+  }
+  return '可以进入下一组混合练习，保持每天短时间高质量练习。'
 }
 
 function getTapBeats(pattern: RhythmPattern): number[] {
